@@ -19,7 +19,9 @@ private:
   bool isRightBlackRookMoved;
   bool isBlackKingMoved;
   pii activeCell;
+  pii promotionCell;
   int state;
+  bool waitingPromotion;
 
   std::vector<std::vector<std::string>> board;
   std::vector<std::pair<pii, pii>> nextMoves;
@@ -30,17 +32,18 @@ private:
   bool isValidMove(pii current_pos, pii new_pos);
   void genNextMoves();
   void resetEnPassant();
-  void doAction(pii current_pos, pii new_pos);
+  void doAction(pii current_pos, pii new_pos, int choose=-1);
   pii getKingPos(bool white) const;
 
 public:
   Game();
 
   std::vector<std::vector<std::string>> getBoard() const;
-  void handleClickOnCell(pii cell);
+  int handleClickOnCell(int cell_id);
   std::vector<std::pair<pii, int>> getSpecialCells() const;
   bool isDraw() const;
   bool isCheckMate() const;
+  bool isWhiteTurn() const;
 };
 
 #endif

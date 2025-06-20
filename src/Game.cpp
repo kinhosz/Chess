@@ -11,6 +11,7 @@ Game::Game() {
   isLeftBlackRookMoved = false;
   isRightBlackRookMoved = false;
   isBlackKingMoved = false;
+  waitingPromotion = false;
 
   buildBoard();
   genNextMoves();
@@ -20,7 +21,13 @@ std::vector<std::vector<std::string>> Game::getBoard() const {
   return board;
 }
 
-void Game::handleClickOnCell(pii cell) {
+int Game::handleClickOnCell(int cell_id) {
+  if(cell_id >= 64) {
+    doAction(activeCell, promotionCell, cell_id - 64);
+    return 0;
+  }
+
+  pii cell = {cell_id / 8, cell_id % 8};
   bool firstClick = activeCell.first == -1;
   bool validMove = false;
   markedCells.clear();
@@ -34,17 +41,26 @@ void Game::handleClickOnCell(pii cell) {
     }
   }
 
+  int promotion_y = (whiteTurn ? 0 : 7);
+  int return_code = 0;
+
   if(firstClick) {
     if(markedCells.size() != 0) {
       markedCells.push_back(cell);
       activeCell = cell;
     }
   } else if(!validMove) {
-    activeCell = {-1, -1};
+    if(!waitingPromotion) activeCell = {-1, -1};
+  } else if(board[activeCell.first][activeCell.second][1] == 'p' && cell.second == promotion_y) {
+    promotionCell = cell;
+    waitingPromotion = true;
+    return_code = 1;
   } else {
     doAction(activeCell, cell);
     activeCell = {-1, -1};
   }
+
+  return return_code;
 }
 
 std::vector<std::pair<pii, int>> Game::getSpecialCells() const {
@@ -383,7 +399,7 @@ void Game::resetEnPassant() {
   enPassant = {-1, -1};
 }
 
-void Game::doAction(pii current_pos, pii new_pos) {
+void Game::doAction(pii current_pos, pii new_pos, int choose) {
   std::string piece = board[current_pos.first][current_pos.second];
 
   if(piece[1] == 'p' && board[new_pos.first][new_pos.second] == "" && current_pos.first != new_pos.first) {
@@ -426,9 +442,17 @@ void Game::doAction(pii current_pos, pii new_pos) {
     board[new_pos.first][new_pos.second] = piece;
   } else if(piece[1] == 'p' && (new_pos.second == 0 || new_pos.second == 7)) {
     // Action: Promotion
-    // Forcing to be a queen bc Im very lazyyyyy....
+    assert(choose != -1);
+    std::string promotedPiece = (whiteTurn ? "w" : "b");
+    if(choose == 0) promotedPiece += "q";
+    else if(choose == 1) promotedPiece += "r";
+    else if(choose == 2) promotedPiece += "n";
+    else if(choose == 3) promotedPiece += "b";
+
     board[current_pos.first][current_pos.second] = "";
-    board[new_pos.first][new_pos.second] = (whiteTurn ? "wq" : "bq");
+    board[new_pos.first][new_pos.second] = promotedPiece;
+    waitingPromotion = false;
+
     resetEnPassant();
   } else {
     // Any other move
@@ -449,4 +473,8 @@ void Game::doAction(pii current_pos, pii new_pos) {
 
   if(nextMoves.size() == 0) state = 1;
   if(state == 1 && isOnCheck()) state = 2;
+}
+
+bool Game::isWhiteTurn() const {
+  return whiteTurn;
 }
