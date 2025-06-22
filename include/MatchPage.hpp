@@ -207,6 +207,7 @@ public:
       assert(move.size() == 2);
       game.doAction(move[0], move[1], button_id - 64);
       showPromotionSquare = false;
+      move.clear();
     }
   }
 };
