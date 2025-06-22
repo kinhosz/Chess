@@ -4,14 +4,12 @@ Game::Game() {
   state = 0;
   whiteTurn = true;
   enPassant = {-1, -1};
-  activeCell = {-1, -1};
   isLeftWhiteRookMoved = false;
   isRightWhiteRookMoved = false;
   isWhiteKingMoved = false;
   isLeftBlackRookMoved = false;
   isRightBlackRookMoved = false;
   isBlackKingMoved = false;
-  waitingPromotion = false;
 
   buildBoard();
   genNextMoves();
@@ -21,49 +19,7 @@ std::vector<std::vector<std::string>> Game::getBoard() const {
   return board;
 }
 
-int Game::handleClickOnCell(int cell_id) {
-  if(cell_id >= 64) {
-    doAction(activeCell, promotionCell, cell_id - 64);
-    return 0;
-  }
-
-  pii cell = {cell_id / 8, cell_id % 8};
-  bool firstClick = activeCell.first == -1;
-  bool validMove = false;
-  markedCells.clear();
-
-  bool hasMove = false;
-  for(int i=0;i<nextMoves.size() && !hasMove;i++) {
-    if(nextMoves[i].first == cell && firstClick) markedCells.push_back(nextMoves[i].second);
-    if(!firstClick && activeCell == nextMoves[i].first && cell == nextMoves[i].second) {
-      validMove = true;
-      break;
-    }
-  }
-
-  int promotion_y = (whiteTurn ? 0 : 7);
-  int return_code = 0;
-
-  if(firstClick) {
-    if(markedCells.size() != 0) {
-      markedCells.push_back(cell);
-      activeCell = cell;
-    }
-  } else if(!validMove) {
-    if(!waitingPromotion) activeCell = {-1, -1};
-  } else if(board[activeCell.first][activeCell.second][1] == 'p' && cell.second == promotion_y) {
-    promotionCell = cell;
-    waitingPromotion = true;
-    return_code = 1;
-  } else {
-    doAction(activeCell, cell);
-    activeCell = {-1, -1};
-  }
-
-  return return_code;
-}
-
-std::vector<std::pair<pii, int>> Game::getSpecialCells() const {
+std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) const {
   std::vector<std::pair<pii, int>> cells;
   if(isDraw()) {
     cells.push_back({getKingPos(true), -1});
@@ -71,9 +27,10 @@ std::vector<std::pair<pii, int>> Game::getSpecialCells() const {
   } else if(isCheckMate()) {
     cells.push_back({getKingPos(whiteTurn), 1});
   } else {
-    for(int i=0;i<markedCells.size();i++) {
-      cells.push_back({markedCells[i], 0});
+    for(int i=0;i<nextMoves.size();i++) {
+      if(nextMoves[i].first == cell) cells.push_back({nextMoves[i].second, 0});
     }
+    if(hasMoveFor(cell)) cells.push_back({cell, 2});
   }
   return cells;
 }
@@ -134,12 +91,12 @@ void Game::buildBoard() {
   }
 }
 
-std::string Game::getPositionInfo(int x, int y) {
+std::string Game::getPositionInfo(int x, int y) const {
   if(x < 0 || x > 7 || y < 0 || y > 7) return "out";
   return board[x][y];
 }
 
-bool Game::isOnCheck() {
+bool Game::isOnCheck() const {
   pii king_pos = getKingPos(whiteTurn);
   int king_x = king_pos.first;
   int king_y = king_pos.second;
@@ -205,8 +162,8 @@ bool Game::isOnCheck() {
   return false;
 }
 
-bool Game::isValidMove(pii current_pos, pii new_pos) {
-  std::string current_pos_before = getPositionInfo(current_pos.first, current_pos.second);
+bool Game::isValidMove(pii curr_pos, pii new_pos) {
+  std::string current_pos_before = getPositionInfo(curr_pos.first, curr_pos.second);
   std::string new_pos_before = getPositionInfo(new_pos.first, new_pos.second);
 
   if(new_pos_before == "out") return false;
@@ -214,13 +171,13 @@ bool Game::isValidMove(pii current_pos, pii new_pos) {
   if(!whiteTurn && (new_pos_before != "" && new_pos_before[0] == 'b')) return false;
 
   // Move the piece
-  board[current_pos.first][current_pos.second] = "";
+  board[curr_pos.first][curr_pos.second] = "";
   board[new_pos.first][new_pos.second] = current_pos_before;
 
   bool isValid = !isOnCheck();
 
   // Rollback board
-  board[current_pos.first][current_pos.second] = current_pos_before;
+  board[curr_pos.first][curr_pos.second] = current_pos_before;
   board[new_pos.first][new_pos.second] = new_pos_before;
 
   return isValid;
@@ -451,7 +408,6 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
 
     board[current_pos.first][current_pos.second] = "";
     board[new_pos.first][new_pos.second] = promotedPiece;
-    waitingPromotion = false;
 
     resetEnPassant();
   } else {
@@ -477,4 +433,26 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
 
 bool Game::isWhiteTurn() const {
   return whiteTurn;
+}
+
+bool Game::hasMoveFor(pii pos) const {
+  for(int i=0;i<nextMoves.size();i++) {
+    if(nextMoves[i].first == pos) return true;
+  }
+  return false;
+}
+
+bool Game::isAvailable(pii curr_pos, pii new_pos) const {
+  for(int i=0;i<nextMoves.size();i++) {
+    if(nextMoves[i].first == curr_pos && nextMoves[i].second == new_pos) return true;
+  }
+  return false;
+}
+
+bool Game::isPawnPromotion(pii curr_pos, pii new_pos) const {
+  if(!isAvailable(curr_pos, new_pos)) return false;
+
+  int promotion_y = (whiteTurn ? 0 : 7);
+
+  return (board[curr_pos.first][curr_pos.second][1] == 'p' && new_pos.second == promotion_y);
 }

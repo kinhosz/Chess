@@ -36,6 +36,7 @@ private:
   float PADDING = 50.f;
   float SQUARE_SIZE = 100.f;
   bool showPromotionSquare;
+  std::vector<pii> move;
   std::vector<Button> buttons;
 
   Game game;
@@ -85,7 +86,10 @@ private:
       }
     }
 
-    std::vector<std::pair<pii, int>> specialCells = game.getSpecialCells();
+    pii cell = {-1, -1};
+    if(move.size() > 0) cell = move[0];
+
+    std::vector<std::pair<pii, int>> specialCells = game.getSpecialCells(cell);
     for(int i=0;i<specialCells.size();i++) {
       int x = specialCells[i].first.first;
       int y = specialCells[i].first.second;
@@ -96,6 +100,8 @@ private:
         c = sf::Color(200, 0, 0); // CheckMate
       } else if(info == -1) {
         c = sf::Color(100, 100, 100); // Draw
+      } else if(info == 2) {
+        c = sf::Color(180, 130, 20); // Assigned Piece
       }
 
       window.draw(createSquare(buttons[x * 8 + y].x0, buttons[x * 8 + y].y0, c));
@@ -162,25 +168,46 @@ public:
   }
 
   void handleClick(const sf::Event::MouseButtonPressed *event) {
-    int x = event->position.x;
-    int y = event->position.y;
+    int mouse_x = event->position.x;
+    int mouse_y = event->position.y;
 
     int button_id = -1;
 
     for(int i=0;i<buttons.size();i++) {
       if(buttons[i].getGroup() == "board") {
         if(showPromotionSquare) continue;
-        if(buttons[i].isClicked(x, y)) button_id = i; 
+        if(buttons[i].isClicked(mouse_x, mouse_y)) button_id = i; 
       } else if(buttons[i].getGroup() == "promotion") {
         if(!showPromotionSquare) continue;
-        if(buttons[i].isClicked(x, y)) button_id = i;
+        if(buttons[i].isClicked(mouse_x, mouse_y)) button_id = i;
       }
     }
 
     if(button_id == -1) return;
-    int info = game.handleClickOnCell(button_id);
-    if(info == 1) showPromotionSquare = true;
-    else showPromotionSquare = false;
+
+    if(buttons[button_id].getGroup() == "board") {
+      int i = button_id / 8;
+      int j = button_id % 8;
+      if(move.size() == 0) {
+        if(game.hasMoveFor({i, j})) move.push_back({i, j}); // Piece selection: Preventing for move
+      } else {
+        if(game.isAvailable(move[0], {i, j})) {
+          move.push_back({i, j});
+          if(game.isPawnPromotion(move[0], move[1])) {
+            showPromotionSquare = true; // Waiting for promoted selection
+          } else {
+            game.doAction(move[0], move[1]); // Executing move
+            move.clear();
+          }
+        } else {
+          move.clear(); // Canceling move action
+        }
+      }
+    } else if(buttons[button_id].getGroup() == "promotion") {
+      assert(move.size() == 2);
+      game.doAction(move[0], move[1], button_id - 64);
+      showPromotionSquare = false;
+    }
   }
 };
 
