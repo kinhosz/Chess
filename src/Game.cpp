@@ -427,7 +427,7 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   whiteTurn = !whiteTurn;
   genNextMoves();
 
-  if(nextMoves.size() == 0) state = 1;
+  if(drawConditions()) state = 1;
   if(state == 1 && isOnCheck()) state = 2;
 }
 
@@ -455,4 +455,36 @@ bool Game::isPawnPromotion(pii curr_pos, pii new_pos) const {
   int promotion_y = (whiteTurn ? 0 : 7);
 
   return (board[curr_pos.first][curr_pos.second][1] == 'p' && new_pos.second == promotion_y);
+}
+
+bool Game::drawConditions() const {
+  // Stalemate
+  if(nextMoves.size() == 0) return true;
+  // Insufficient mating material
+  int material = 0;
+  /*********************
+  0: nothing
+  1: knight
+  2: white bishop
+  3: black bishop
+  **********************/
+  bool isInsufficient = true;
+  for(int i=0;i<8 && isInsufficient;i++) {
+    for(int j=0;j<8 && isInsufficient;j++) {
+      if(board[i][j] == "" || board[i][j][1] == 'k') continue;
+      else if(board[i][j][1] == 'p' || board[i][j][1] == 'q' || board[i][j][1] == 'r') isInsufficient = false;
+      else if(board[i][j][1] == 'n') {
+        if(material == 0) material = 1;
+        else isInsufficient = false;
+      } else {
+        int c = ((j + (i % 2)) % 2 == 0 ? 2 : 3);
+        if(material == 0) material = c;
+        else if(material != c) isInsufficient = false;
+      }
+    }
+  }
+  if(isInsufficient) return true;
+
+  // All checks have been passed
+  return false;
 }

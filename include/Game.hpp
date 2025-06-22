@@ -29,6 +29,7 @@ private:
   void genNextMoves();
   void resetEnPassant();
   pii getKingPos(bool white) const;
+  bool drawConditions() const;
 
 public:
   Game();
