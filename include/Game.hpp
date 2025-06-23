@@ -2,6 +2,7 @@
 #define GAME_HPP
 
 #include <iostream>
+#include <map>
 #include <vector>
 #include <assert.h>
 
@@ -21,8 +22,10 @@ private:
 
   std::vector<std::vector<std::string>> board;
   std::vector<std::pair<pii, pii>> nextMoves;
+  std::map<int, int> hashedBoardCounter;
 
   void buildBoard();
+  void storeHashedBoard();
   std::string getPositionInfo(int x, int y) const;
   bool isValidMove(pii curr_pos, pii new_pos);
   bool isOnCheck() const;

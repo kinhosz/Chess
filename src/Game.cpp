@@ -19,6 +19,26 @@ std::vector<std::vector<std::string>> Game::getBoard() const {
   return board;
 }
 
+void Game::storeHashedBoard() {
+  long long hsh = 0;
+  long long Q = 257;
+  long long M = int(1e9 + 7);
+  for(int i=0;i<8;i++) {
+    for(int j=0;j<8;j++) {
+      long long a = 1, b = 1;
+      if(board[i][j] != "") {
+        a = board[i][j][0] - 'a';
+        b = board[i][j][1] - 'a';
+      }
+
+      hsh = ((hsh * Q)%M + a)%M;
+      hsh = ((hsh * Q)%M + b)%M;
+    }
+  }
+
+  hashedBoardCounter[hsh]++;
+}
+
 std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) const {
   std::vector<std::pair<pii, int>> cells;
   if(isDraw()) {
@@ -89,6 +109,7 @@ void Game::buildBoard() {
     board[i][1] = "bp";
     board[i][6] = "wp";
   }
+  storeHashedBoard();
 }
 
 std::string Game::getPositionInfo(int x, int y) const {
@@ -416,6 +437,7 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     board[new_pos.first][new_pos.second] = piece;
     resetEnPassant();
   }
+  storeHashedBoard();
 
   if(piece == "wk") isWhiteKingMoved = true;
   if(piece == "bk") isBlackKingMoved = true;
@@ -484,6 +506,11 @@ bool Game::drawConditions() const {
     }
   }
   if(isInsufficient) return true;
+
+  // Repetition
+  for(auto &p: hashedBoardCounter) {
+    if(p.second >= 3) return true;
+  }
 
   // All checks have been passed
   return false;
