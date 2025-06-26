@@ -23,6 +23,7 @@ private:
   std::vector<std::vector<std::string>> board;
   std::vector<std::pair<pii, pii>> nextMoves;
   std::map<int, int> hashedBoardCounter;
+  std::vector<std::vector<std::pair<pii, std::string>>> backupCells;
 
   void buildBoard();
   void storeHashedBoard();
@@ -33,11 +34,12 @@ private:
   void resetEnPassant();
   pii getKingPos(bool white) const;
   bool drawConditions() const;
+  void executeMove(std::vector<std::pair<pii, std::string>> &move);
 
 public:
   Game();
 
-  std::vector<std::vector<std::string>> getBoard() const;
+  std::vector<std::vector<std::string>> getBoard(int move_id=-1) const;
   void doAction(pii current_pos, pii new_pos, int choose=-1);
   std::vector<std::pair<pii, int>> getSpecialCells(pii cell) const;
   bool isDraw() const;
@@ -46,6 +48,7 @@ public:
   bool hasMoveFor(pii pos) const;
   bool isPawnPromotion(pii curr_pos, pii new_pos) const;
   bool isAvailable(pii curr_pos, pii new_pos) const;
+  int getTotalMoves() const;
 };
 
 #endif

@@ -7,6 +7,7 @@
 
 class Button {
   std::string group = "";
+  std::string name = "";
 public:
   float x0, xf, y0, yf;
 
@@ -25,6 +26,14 @@ public:
     return group;
   }
 
+  void setName(std::string name) {
+    this->name = name;
+  }
+
+  std::string getName() const {
+    return name;
+  }
+
   bool isClicked(int x, int y) {
     return x >= x0 && x <= xf && y >= y0 && y <= yf;
   }
@@ -40,6 +49,7 @@ private:
   std::vector<Button> buttons;
 
   Game game;
+  int move_counter;
 
   void createButtons() {
     // Board cells
@@ -65,6 +75,17 @@ private:
       buttons.push_back(Button(x0, xf, y0, yf));
       buttons[buttons.size()-1].setGroup("promotion");
     }
+    // Left & Right arrows
+    float x0 = 2.0 * PADDING + 8.0 * SQUARE_SIZE;
+    float y0 = PADDING + 7.0 * SQUARE_SIZE;
+    buttons.push_back(Button(x0, x0 + SQUARE_SIZE, y0, y0 + SQUARE_SIZE));
+    buttons[buttons.size()-1].setGroup("action");
+    buttons[buttons.size()-1].setName("previous-move");
+
+    x0 += SQUARE_SIZE;
+    buttons.push_back(Button(x0, x0 + SQUARE_SIZE, y0, y0 + SQUARE_SIZE));
+    buttons[buttons.size()-1].setGroup("action");
+    buttons[buttons.size()-1].setName("next-move");
   }
 
   sf::RectangleShape createSquare(float x, float y, sf::Color c) {
@@ -78,6 +99,11 @@ private:
   }
 
   void drawBoard(sf::RenderWindow &window) {
+    sf::RectangleShape rect({WIDTH, HEIGHT});
+    rect.setFillColor(sf::Color(255, 255, 255));
+    rect.setPosition({0, 0});
+    window.draw(rect);
+
     for(int i=0;i<8;i++) {
       for(int j=0;j<8;j++) {
         sf::Color c(255, 255, 255);
@@ -108,9 +134,37 @@ private:
     }
   }
 
+  void drawActionButtons(sf::RenderWindow &window) {
+    sf::Texture texture;
+    int offset_id = 8*8 + 4;
+    sf::Color c(180, 100, 50);
+  
+    // Left arrow
+    window.draw(createSquare(buttons[offset_id].x0, buttons[offset_id].y0, c));
+    std::string path = "assets/icons/left-arrow.png";
+    if(!texture.loadFromFile(path.c_str())) {
+      std::cerr << "Failed to open: " << path << "\n";
+    }
+    sf::Sprite sprite(texture);
+    sprite.setScale({0.15f, 0.15f});
+    sprite.setPosition({buttons[offset_id].x0 + 10.0, buttons[offset_id].y0 + 10.0});
+    window.draw(sprite);
+
+    // Right arrow
+    window.draw(createSquare(buttons[offset_id + 1].x0, buttons[offset_id + 1].y0, c));
+    path = "assets/icons/right-arrow.png";
+    if(!texture.loadFromFile(path.c_str())) {
+      std::cerr << "Failed to open: " << path << "\n";
+    }
+    sprite = sf::Sprite(texture);
+    sprite.setScale({0.15f, 0.15f});
+    sprite.setPosition({buttons[offset_id + 1].x0 + 10.0, buttons[offset_id + 1].y0 + 10.0});
+    window.draw(sprite);
+  }
+
   void drawPiece(sf::RenderWindow &window, std::string piece, float x, float y) {
     sf::Texture texture;
-    std::string path = "assets/" + piece + ".png";
+    std::string path = "assets/pieces/" + piece + ".png";
     if(!texture.loadFromFile(path.c_str())) {
       std::cerr << "Failed to open: " << path << "\n";
     }
@@ -122,7 +176,7 @@ private:
   }
 
   void drawPieces(sf::RenderWindow &window) {
-    const std::vector<std::vector<std::string>> &setup = game.getBoard();
+    const std::vector<std::vector<std::string>> &setup = game.getBoard(move_counter);
     for(int i=0;i<8;i++) {
       for(int j=0;j<8;j++) {
         if(setup[i][j] == "") continue;
@@ -150,6 +204,45 @@ private:
     }
   }
 
+  void handlePromotion(int button_id) {
+    assert(move.size() == 2);
+    game.doAction(move[0], move[1], button_id - 64);
+    showPromotionSquare = false;
+    move_counter++;
+    move.clear();
+  }
+
+  void handleAction(int button_id) {
+    if(buttons[button_id].getName() == "previous-move") {
+      move.clear();
+      move_counter = std::max(0, move_counter - 1);
+    } else if(buttons[button_id].getName() == "next-move") {
+      move.clear();
+      move_counter = std::min(game.getTotalMoves(), move_counter + 1);
+    }
+  }
+
+  void handleBoardClick(int button_id) {
+    int i = button_id / 8;
+    int j = button_id % 8;
+    if(move.size() == 0) {
+      if(game.hasMoveFor({i, j})) move.push_back({i, j}); // Piece selection: Preventing for move
+    } else {
+      if(game.isAvailable(move[0], {i, j})) {
+        move.push_back({i, j});
+        if(game.isPawnPromotion(move[0], move[1])) {
+          showPromotionSquare = true; // Waiting for promoted selection
+        } else {
+          game.doAction(move[0], move[1]); // Executing move
+          move.clear();
+          move_counter++;
+        }
+      } else {
+        move.clear(); // Canceling move action
+      }
+    }
+  }
+
 public:
   MatchPage() {}
 
@@ -157,6 +250,7 @@ public:
     WIDTH = width;
     HEIGHT = height;
     showPromotionSquare = false;
+    move_counter = 0;
     createButtons();
   }
 
@@ -164,6 +258,7 @@ public:
     /* Refresh the display */
     drawBoard(window);
     drawPieces(window);
+    drawActionButtons(window);
     if(showPromotionSquare) drawPromotionOption(window);
   }
 
@@ -174,40 +269,34 @@ public:
     int button_id = -1;
 
     for(int i=0;i<buttons.size();i++) {
-      if(buttons[i].getGroup() == "board") {
-        if(showPromotionSquare) continue;
-        if(buttons[i].isClicked(mouse_x, mouse_y)) button_id = i; 
-      } else if(buttons[i].getGroup() == "promotion") {
-        if(!showPromotionSquare) continue;
-        if(buttons[i].isClicked(mouse_x, mouse_y)) button_id = i;
-      }
-    }
+      //std::cerr << game.getTotalMoves() << " " << move_counter << "\n";
+      /*
+        The page has 3 main states:
+          1) Promotion time
+          2) History: Previous moves
+          3) basic game move
+      */
 
-    if(button_id == -1) return;
-
-    if(buttons[button_id].getGroup() == "board") {
-      int i = button_id / 8;
-      int j = button_id % 8;
-      if(move.size() == 0) {
-        if(game.hasMoveFor({i, j})) move.push_back({i, j}); // Piece selection: Preventing for move
-      } else {
-        if(game.isAvailable(move[0], {i, j})) {
-          move.push_back({i, j});
-          if(game.isPawnPromotion(move[0], move[1])) {
-            showPromotionSquare = true; // Waiting for promoted selection
-          } else {
-            game.doAction(move[0], move[1]); // Executing move
-            move.clear();
-          }
-        } else {
-          move.clear(); // Canceling move action
+      // Promotion time: Only click on promotion options are availables
+      if(showPromotionSquare) {
+        if(buttons[i].getGroup() == "promotion" && buttons[i].isClicked(mouse_x, mouse_y)) {
+          handlePromotion(i);
+          break;
         }
+        continue;
       }
-    } else if(buttons[button_id].getGroup() == "promotion") {
-      assert(move.size() == 2);
-      game.doAction(move[0], move[1], button_id - 64);
-      showPromotionSquare = false;
-      move.clear();
+
+      // Actions buttons are available at any time now
+      if(buttons[i].getGroup() == "action" && buttons[i].isClicked(mouse_x, mouse_y)) {
+        handleAction(i);
+        break;
+      }
+
+      // Basic board click
+      if(buttons[i].getGroup() == "board" && game.getTotalMoves() == move_counter && buttons[i].isClicked(mouse_x, mouse_y)) {
+        handleBoardClick(i);
+        break;
+      }
     }
   }
 };

@@ -15,8 +15,18 @@ Game::Game() {
   genNextMoves();
 }
 
-std::vector<std::vector<std::string>> Game::getBoard() const {
-  return board;
+std::vector<std::vector<std::string>> Game::getBoard(int move_id) const {
+  if(move_id == -1) move_id = backupCells.size();
+
+  std::vector<std::vector<std::string>> tmp = board;
+
+  for(int i=(int)backupCells.size() - 1; i>=move_id; i--) {
+    for(auto &c: backupCells[i]) {
+      tmp[c.first.first][c.first.second] = c.second;
+    }
+  }
+
+  return tmp;
 }
 
 void Game::storeHashedBoard() {
@@ -373,18 +383,33 @@ void Game::genNextMoves() {
   }
 }
 
+void Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
+  std::vector<std::pair<pii, std::string>> rollback;
+
+  for(auto &m: move) {
+    rollback.push_back({m.first, board[m.first.first][m.first.second]});
+    board[m.first.first][m.first.second] = m.second;
+  }
+
+  backupCells.push_back(rollback);
+}
+
 void Game::resetEnPassant() {
   enPassant = {-1, -1};
 }
 
 void Game::doAction(pii current_pos, pii new_pos, int choose) {
+  assert(isAvailable(current_pos, new_pos));
   std::string piece = board[current_pos.first][current_pos.second];
+  std::vector<std::pair<pii, std::string>> current_move;
 
   if(piece[1] == 'p' && board[new_pos.first][new_pos.second] == "" && current_pos.first != new_pos.first) {
     // Action: En passant
-    board[current_pos.first][current_pos.second] = "";
-    board[new_pos.first][new_pos.second] = piece;
-    board[enPassant.first][enPassant.second] = "";
+    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{new_pos.first, new_pos.second}, piece});
+    current_move.push_back({{enPassant.first, enPassant.second}, ""});
+    executeMove(current_move);
+
     resetEnPassant();
   } else if(piece[1] == 'k' && int(std::abs(current_pos.first - new_pos.first)) == 2) {
     // Action: Castling
@@ -392,20 +417,22 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     if(new_pos.first == 2) {
       std::string rook = board[0][row];
 
-      board[0][row] = "";
-      board[2][row] = piece;
-      board[3][row] = rook;
-      board[4][row] = "";
+      current_move.push_back({{0, row}, ""});
+      current_move.push_back({{2, row}, piece});
+      current_move.push_back({{3, row}, rook});
+      current_move.push_back({{4, row}, ""});
+      executeMove(current_move);
 
       if(whiteTurn) isLeftWhiteRookMoved = true;
       else isLeftBlackRookMoved = true;
     } else {
       std::string rook = board[7][row];
 
-      board[7][row] = "";
-      board[6][row] = piece;
-      board[5][row] = rook;
-      board[4][row] = "";
+      current_move.push_back({{7, row}, ""});
+      current_move.push_back({{6, row}, piece});
+      current_move.push_back({{5, row}, rook});
+      current_move.push_back({{4, row}, ""});
+      executeMove(current_move);
 
       if(whiteTurn) isRightWhiteRookMoved = true;
       else isRightBlackRookMoved = true;
@@ -416,8 +443,11 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   } else if(piece[1] == 'p' && int(std::abs(current_pos.second - new_pos.second)) == 2) {
     // Action: Two moves
     enPassant = new_pos;
-    board[current_pos.first][current_pos.second] = "";
-    board[new_pos.first][new_pos.second] = piece;
+
+    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{new_pos.first, new_pos.second}, piece});
+    executeMove(current_move);
+
   } else if(piece[1] == 'p' && (new_pos.second == 0 || new_pos.second == 7)) {
     // Action: Promotion
     assert(choose != -1);
@@ -427,14 +457,17 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     else if(choose == 2) promotedPiece += "n";
     else if(choose == 3) promotedPiece += "b";
 
-    board[current_pos.first][current_pos.second] = "";
-    board[new_pos.first][new_pos.second] = promotedPiece;
+    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{new_pos.first, new_pos.second}, promotedPiece});
+    executeMove(current_move);
 
     resetEnPassant();
   } else {
     // Any other move
-    board[current_pos.first][current_pos.second] = "";
-    board[new_pos.first][new_pos.second] = piece;
+    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{new_pos.first, new_pos.second}, piece});
+    executeMove(current_move);
+
     resetEnPassant();
   }
   storeHashedBoard();
@@ -514,4 +547,8 @@ bool Game::drawConditions() const {
 
   // All checks have been passed
   return false;
+}
+
+int Game::getTotalMoves() const {
+  return backupCells.size();
 }
