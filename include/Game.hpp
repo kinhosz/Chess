@@ -37,6 +37,7 @@ private:
   void addState(GameState gs);
 
   void buildBoard();
+  int getBoardHash() const;
   void storeHashedBoard();
   std::string getPositionInfo(int x, int y) const;
   bool isValidMove(pii curr_pos, pii new_pos);
@@ -50,6 +51,7 @@ public:
   Game();
 
   std::vector<std::vector<std::string>> getBoard(int move_id=-1) const;
+  void undoAction();
   void doAction(pii current_pos, pii new_pos, int choose=-1);
   std::vector<std::pair<pii, int>> getSpecialCells(pii cell) const;
   bool isDraw() const;

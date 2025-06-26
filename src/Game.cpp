@@ -37,7 +37,7 @@ std::vector<std::vector<std::string>> Game::getBoard(int move_id) const {
   return tmp;
 }
 
-void Game::storeHashedBoard() {
+int Game::getBoardHash() const {
   long long hsh = 0;
   long long Q = 257;
   long long M = int(1e9 + 7);
@@ -54,7 +54,11 @@ void Game::storeHashedBoard() {
     }
   }
 
-  hashedBoardCounter[hsh]++;
+  return hsh;
+}
+
+void Game::storeHashedBoard() {
+  hashedBoardCounter[getBoardHash()]++;
 }
 
 std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) const {
@@ -400,6 +404,20 @@ void Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
   }
 
   moves.push_back(rollback);
+}
+
+void Game::undoAction() {
+  gameState.pop_back();
+
+  hashedBoardCounter[getBoardHash()]--;
+
+  auto &undo_move = moves.back();
+  for(auto &m: undo_move) {
+    board[m.first.first][m.first.second] = m.second;
+  }
+  moves.pop_back();
+
+  genNextMoves(gameState.back());
 }
 
 void Game::doAction(pii current_pos, pii new_pos, int choose) {
