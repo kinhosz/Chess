@@ -41,7 +41,6 @@ public:
     while(window.isOpen()) {
       handleEventQueue();
       updateDisplay();
-      sf::sleep(sf::seconds(1));
     }
   }
 };

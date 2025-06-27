@@ -37,20 +37,12 @@ std::vector<std::vector<std::string>> Game::getBoard(int move_id) const {
   return tmp;
 }
 
-int Game::getBoardHash() const {
-  long long hsh = 0;
-  long long Q = 257;
-  long long M = int(1e9 + 7);
+std::string Game::getBoardHash() const {
+  std::string hsh = "";
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
-      long long a = 1, b = 1;
-      if(board[i][j] != "") {
-        a = board[i][j][0] - 'a';
-        b = board[i][j][1] - 'a';
-      }
-
-      hsh = ((hsh * Q)%M + a)%M;
-      hsh = ((hsh * Q)%M + b)%M;
+      if(board[i][j] == "") hsh += "xx";
+      else hsh += board[i][j];
     }
   }
 

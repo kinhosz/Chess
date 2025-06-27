@@ -30,14 +30,14 @@ private:
   std::vector<GameState> gameState;
   std::vector<std::vector<std::string>> board;
   std::vector<std::pair<pii, pii>> nextMoves;
-  std::map<int, int> hashedBoardCounter;
+  std::map<std::string, int> hashedBoardCounter;
   std::vector<std::vector<std::pair<pii, std::string>>> moves;
 
   GameState getState() const;
   void addState(GameState gs);
 
   void buildBoard();
-  int getBoardHash() const;
+  std::string getBoardHash() const;
   void storeHashedBoard();
   std::string getPositionInfo(int x, int y) const;
   bool isValidMove(pii curr_pos, pii new_pos);
