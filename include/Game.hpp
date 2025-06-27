@@ -45,14 +45,15 @@ private:
   void genNextMoves(const GameState gs);
   pii getKingPos(bool white) const;
   bool drawConditions() const;
-  void executeMove(std::vector<std::pair<pii, std::string>> &move);
+  double executeMove(std::vector<std::pair<pii, std::string>> &move);
+  double evaluatePiece(std::string piece) const;
 
 public:
   Game();
 
   std::vector<std::vector<std::string>> getBoard(int move_id=-1) const;
   void undoAction();
-  void doAction(pii current_pos, pii new_pos, int choose=-1);
+  double doAction(pii current_pos, pii new_pos, int choose=-1);
   std::vector<std::pair<pii, int>> getSpecialCells(pii cell) const;
   bool isDraw() const;
   bool isCheckMate() const;
@@ -61,6 +62,7 @@ public:
   bool isPawnPromotion(pii curr_pos, pii new_pos) const;
   bool isAvailable(pii curr_pos, pii new_pos) const;
   int getTotalMoves() const;
+  std::vector<std::pair<pii, pii>> getAllMoves() const;
 };
 
 #endif

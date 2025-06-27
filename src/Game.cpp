@@ -395,15 +395,37 @@ void Game::genNextMoves(const GameState gs) {
   }
 }
 
-void Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
+double Game::evaluatePiece(std::string piece) const {
+  if(piece == "") return 0.0;
+  int mult = (piece[0] == 'w' ? 1.0 : -1.0);
+
+  double value = 0.0;
+
+  if(piece[1] == 'r') value = 5.0;
+  else if(piece[1] == 'n') value = 3.0;
+  else if(piece[1] == 'b') value = 3.0;
+  else if(piece[1] == 'q') value = 9.0;
+  else if(piece[1] == 'p') value = 1.0;
+
+  return mult * value;
+}
+
+double Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
   std::vector<std::pair<pii, std::string>> rollback;
+  double score = 0.0;
 
   for(auto &m: move) {
-    rollback.push_back({m.first, board[m.first.first][m.first.second]});
+    std::string curr_piece = board[m.first.first][m.first.second];
+    rollback.push_back({m.first, curr_piece});
     board[m.first.first][m.first.second] = m.second;
+
+    score -= evaluatePiece(curr_piece);
+    score += evaluatePiece(m.second);
   }
 
   moves.push_back(rollback);
+
+  return score;
 }
 
 void Game::undoAction() {
@@ -420,7 +442,7 @@ void Game::undoAction() {
   genNextMoves(gameState.back());
 }
 
-void Game::doAction(pii current_pos, pii new_pos, int choose) {
+double Game::doAction(pii current_pos, pii new_pos, int choose) {
   assert(isAvailable(current_pos, new_pos));
 
   const GameState curr_gs = getState();
@@ -489,7 +511,7 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
 
   }
-  executeMove(current_move);
+  double score = executeMove(current_move);
   storeHashedBoard();
 
   if(piece == "wk") new_gs.touch(0), new_gs.touch(1);
@@ -505,6 +527,14 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   if(new_gs.gameStatus == "draw" && isOnCheck()) new_gs.gameStatus = "checkmate";
 
   addState(new_gs);
+
+  if(new_gs.gameStatus == "draw") return 0.0;
+  else if(new_gs.gameStatus == "checkmate") {
+    if(isWhiteTurn()) return 1.000;
+    else return -1.000;
+  }
+
+  return score;
 }
 
 bool Game::hasMoveFor(pii pos) const {
@@ -568,4 +598,8 @@ bool Game::drawConditions() const {
 
 int Game::getTotalMoves() const {
   return moves.size();
+}
+
+std::vector<std::pair<pii, pii>> Game::getAllMoves() const {
+  return nextMoves;
 }

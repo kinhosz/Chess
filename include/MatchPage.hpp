@@ -4,6 +4,7 @@
 #include <SFML/Graphics.hpp>
 
 #include <Game.hpp>
+#include <Engine.hpp>
 
 class Button {
   std::string group = "";
@@ -50,6 +51,10 @@ private:
 
   Game game;
   int move_counter;
+
+  int match_mode;
+  Engine engine;
+  int DEEP_SIZE = 1;
 
   void createButtons() {
     // Board cells
@@ -204,9 +209,15 @@ private:
     }
   }
 
+  void doGameMove(pii curr_pos, pii new_pos, int choose=-1) {
+    game.doAction(curr_pos, new_pos, choose);
+    engine.moveDone({{curr_pos, new_pos}, choose});
+    move_counter = game.getTotalMoves();
+  }
+
   void handlePromotion(int button_id) {
     assert(move.size() == 2);
-    game.doAction(move[0], move[1], button_id - 64);
+    doGameMove(move[0], move[1], button_id - 64);
     showPromotionSquare = false;
     move_counter++;
     move.clear();
@@ -233,7 +244,7 @@ private:
         if(game.isPawnPromotion(move[0], move[1])) {
           showPromotionSquare = true; // Waiting for promoted selection
         } else {
-          game.doAction(move[0], move[1]); // Executing move
+          doGameMove(move[0], move[1]); // Executing move
           move.clear();
           move_counter++;
         }
@@ -241,6 +252,14 @@ private:
         move.clear(); // Canceling move action
       }
     }
+  }
+
+  void botAction() {
+    if(isPlayerTurn()) return;
+    if(game.isCheckMate() || game.isDraw()) return;
+
+    i5 move = engine.getNextMove(DEEP_SIZE);
+    doGameMove(move.first.first, move.first.second, move.second);
   }
 
 public:
@@ -251,6 +270,7 @@ public:
     HEIGHT = height;
     showPromotionSquare = false;
     move_counter = 0;
+    match_mode = 3;
     createButtons();
   }
 
@@ -260,6 +280,48 @@ public:
     drawPieces(window);
     drawActionButtons(window);
     if(showPromotionSquare) drawPromotionOption(window);
+
+    botAction();
+  }
+
+  bool isPlayerTurn() const {
+    return ((match_mode&(1<<game.isWhiteTurn())) == 0);
+  }
+
+  bool canHandlePromotion(Button &b, double mx, double my) const {
+    if(!showPromotionSquare) return false;
+
+    if(!isPlayerTurn()) return false;
+
+    if(b.getGroup() != "promotion") return false;
+
+    if(!b.isClicked(mx, my)) return false;
+
+    return true;
+  }
+
+  bool canHandleAction(Button &b, double mx, double my) const {
+    if(showPromotionSquare) return false;
+
+    if(b.getGroup() != "action") return false;
+
+    if(!b.isClicked(mx, my)) return false;
+
+    return true;
+  }
+
+  bool canHandleBoard(Button &b, double mx, double my) const {
+    if(showPromotionSquare) return false;
+
+    if(b.getGroup() != "board") return false;
+
+    if(game.getTotalMoves() != move_counter) return false;
+
+    if(!isPlayerTurn()) return false;
+
+    if(!b.isClicked(mx, my)) return false;
+
+    return true;
   }
 
   void handleClick(const sf::Event::MouseButtonPressed *event) {
@@ -269,7 +331,6 @@ public:
     int button_id = -1;
 
     for(int i=0;i<buttons.size();i++) {
-      //std::cerr << game.getTotalMoves() << " " << move_counter << "\n";
       /*
         The page has 3 main states:
           1) Promotion time
@@ -278,22 +339,19 @@ public:
       */
 
       // Promotion time: Only click on promotion options are availables
-      if(showPromotionSquare) {
-        if(buttons[i].getGroup() == "promotion" && buttons[i].isClicked(mouse_x, mouse_y)) {
-          handlePromotion(i);
-          break;
-        }
-        continue;
+      if(canHandlePromotion(buttons[i], mouse_x, mouse_y)) {
+        handlePromotion(i);
+        break;
       }
 
       // Actions buttons are available at any time now
-      if(buttons[i].getGroup() == "action" && buttons[i].isClicked(mouse_x, mouse_y)) {
+      if(canHandleAction(buttons[i], mouse_x, mouse_y)) {
         handleAction(i);
         break;
       }
 
       // Basic board click
-      if(buttons[i].getGroup() == "board" && game.getTotalMoves() == move_counter && buttons[i].isClicked(mouse_x, mouse_y)) {
+      if(canHandleBoard(buttons[i], mouse_x, mouse_y)) {
         handleBoardClick(i);
         break;
       }
