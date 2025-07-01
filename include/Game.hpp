@@ -12,6 +12,7 @@ struct GameState {
   pii enPassant;
   int castlingPreserved;
   std::string gameStatus;
+  double gameScore;
 
   bool isCastlingPreserved(int id) const {
     // 0: o-o-o white, 1: o-o white, 2: o-o-o black, 3: o-o black
@@ -53,7 +54,7 @@ public:
 
   std::vector<std::vector<std::string>> getBoard(int move_id=-1) const;
   void undoAction();
-  double doAction(pii current_pos, pii new_pos, int choose=-1);
+  void doAction(pii current_pos, pii new_pos, int choose=-1);
   std::vector<std::pair<pii, int>> getSpecialCells(pii cell) const;
   bool isDraw() const;
   bool isCheckMate() const;
@@ -63,6 +64,7 @@ public:
   bool isAvailable(pii curr_pos, pii new_pos) const;
   int getTotalMoves() const;
   std::vector<std::pair<pii, pii>> getAllMoves() const;
+  double getScore() const;
 };
 
 #endif

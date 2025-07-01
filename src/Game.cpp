@@ -5,6 +5,7 @@ Game::Game() {
   gs.gameStatus = "alive";
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
+  gs.gameScore = 0.0;
   addState(gs);
 
   buildBoard();
@@ -434,7 +435,7 @@ void Game::undoAction() {
   genNextMoves(gameState.back());
 }
 
-double Game::doAction(pii current_pos, pii new_pos, int choose) {
+void Game::doAction(pii current_pos, pii new_pos, int choose) {
   assert(isAvailable(current_pos, new_pos));
 
   const GameState curr_gs = getState();
@@ -503,7 +504,7 @@ double Game::doAction(pii current_pos, pii new_pos, int choose) {
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
 
   }
-  double score = executeMove(current_move);
+  new_gs.gameScore += executeMove(current_move);
   storeHashedBoard();
 
   if(piece == "wk") new_gs.touch(0), new_gs.touch(1);
@@ -515,18 +516,17 @@ double Game::doAction(pii current_pos, pii new_pos, int choose) {
 
   genNextMoves(new_gs);
 
-  if(drawConditions()) new_gs.gameStatus = "draw";
-  if(new_gs.gameStatus == "draw" && isOnCheck()) new_gs.gameStatus = "checkmate";
-
-  addState(new_gs);
-
-  if(new_gs.gameStatus == "draw") return 0.0;
-  else if(new_gs.gameStatus == "checkmate") {
-    if(isWhiteTurn()) return 1.000;
-    else return -1.000;
+  if(drawConditions()) {
+    new_gs.gameStatus = "draw";
+    new_gs.gameScore = 0.0;
+  }
+  if(nextMoves.size() == 0 && isOnCheck()) {
+    new_gs.gameStatus = "checkmate";
+    if(isWhiteTurn()) new_gs.gameScore = -1000;
+    else new_gs.gameScore = 1000;
   }
 
-  return score;
+  addState(new_gs);
 }
 
 bool Game::hasMoveFor(pii pos) const {
@@ -594,4 +594,8 @@ int Game::getTotalMoves() const {
 
 std::vector<std::pair<pii, pii>> Game::getAllMoves() const {
   return nextMoves;
+}
+
+double Game::getScore() const {
+  return getState().gameScore;
 }

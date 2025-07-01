@@ -52,9 +52,9 @@ private:
   Game game;
   int move_counter;
 
-  int match_mode;
+  int MATCH_MODE = 3;
   Engine engine;
-  int DEEP_SIZE = 1;
+  int DEEP_SIZE = 4;
 
   void createButtons() {
     // Board cells
@@ -213,13 +213,14 @@ private:
     game.doAction(curr_pos, new_pos, choose);
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();
+    std::cerr << "Score: " << game.getScore() << "\n";
+    std::cerr << "---------------\n";
   }
 
   void handlePromotion(int button_id) {
     assert(move.size() == 2);
     doGameMove(move[0], move[1], button_id - 64);
     showPromotionSquare = false;
-    move_counter++;
     move.clear();
   }
 
@@ -246,7 +247,6 @@ private:
         } else {
           doGameMove(move[0], move[1]); // Executing move
           move.clear();
-          move_counter++;
         }
       } else {
         move.clear(); // Canceling move action
@@ -258,8 +258,15 @@ private:
     if(isPlayerTurn()) return;
     if(game.isCheckMate() || game.isDraw()) return;
 
+    std::clock_t t = std::clock();
     i5 move = engine.getNextMove(DEEP_SIZE);
     doGameMove(move.first.first, move.first.second, move.second);
+    t = (std::clock() - t);
+    int seconds = t / CLOCKS_PER_SEC;
+    int minutes = seconds / 60;
+    seconds = seconds % 60;
+
+    std::cerr << "Time elapsed: " << minutes << "m" << seconds << "s\n";
   }
 
 public:
@@ -270,7 +277,6 @@ public:
     HEIGHT = height;
     showPromotionSquare = false;
     move_counter = 0;
-    match_mode = 3;
     createButtons();
   }
 
@@ -285,7 +291,7 @@ public:
   }
 
   bool isPlayerTurn() const {
-    return ((match_mode&(1<<game.isWhiteTurn())) == 0);
+    return ((MATCH_MODE&(1<<game.isWhiteTurn())) == 0);
   }
 
   bool canHandlePromotion(Button &b, double mx, double my) const {
@@ -315,11 +321,11 @@ public:
 
     if(b.getGroup() != "board") return false;
 
-    if(game.getTotalMoves() != move_counter) return false;
-
     if(!isPlayerTurn()) return false;
 
     if(!b.isClicked(mx, my)) return false;
+  
+    if(game.getTotalMoves() != move_counter) return false;
 
     return true;
   }

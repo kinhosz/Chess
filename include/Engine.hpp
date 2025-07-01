@@ -5,6 +5,7 @@
 #include <vector>
 #include <chrono>
 #include <random>
+#include <algorithm>
 
 #include <Game.hpp>
 
@@ -14,17 +15,39 @@ typedef std::pair<int, int> i2;
 typedef std::pair<i2, i2> i4;
 typedef std::pair<i4, int> i5;
 
+double INF = 1e8;
+
+int cmp(double a, double b) {
+  double eps = 0.0001;
+
+  if(std::abs(a - b) < eps) return 0;
+  if(a < b) return -1;
+  return 1;
+}
+
+bool max_cmp(std::pair<double, int> a, std::pair<double, int> b) {
+  return cmp(a.first, b.first) == 1;
+}
+
+bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
+  return cmp(a.first, b.first) == -1;
+}
+
 class EngineNode {
 private:
+  double score;
   int level;
   int next_line;
   std::vector<std::unique_ptr<EngineNode>> lines;
-  std::vector<double> scores;
+  std::vector<std::pair<double, int>> sorted_ptr;
 
   void createNextLines(const Game& game) {
     const auto& moves = game.getAllMoves();
 
-    for(auto &move: moves) {
+    bool isWhiteTurn = game.isWhiteTurn();
+
+    for(int i=0;i<moves.size();i++) {
+      const auto &move = moves[i];
       if(game.isPawnPromotion(move.first, move.second)) {
         for(int i=0;i<4;i++) {
           lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, i), level));
@@ -32,6 +55,9 @@ private:
       } else {
         lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1), level + 1));
       }
+
+      if(isWhiteTurn) sorted_ptr.push_back({-INF, i});
+      else sorted_ptr.push_back({INF, i});
     }
   }
 
@@ -42,7 +68,6 @@ private:
 
 public:
   i5 move;
-  double score;
 
   EngineNode(i5 move, int level) {
     this->move = move;
@@ -59,40 +84,100 @@ public:
     return score;
   }
 
-  void explore(Game& game, int deep) {
-    score = 0.0;
+  double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
+    cnt++;
+    score = game.getScore();
 
-    if(deep <= 0) return;
+    if(deep <= 0) return score;
+    if(game.isDraw() || game.isCheckMate()) return score;
     if(isLinesMissing(game)) createNextLines(game);
 
     double first_assign = true;
-    int whiteTurn = game.isWhiteTurn();
-    scores.clear();
+    bool whiteTurn = game.isWhiteTurn();
 
-    for(const auto &line: lines) {
-      double tmp_score = game.doAction(line->move.first.first, line->move.first.second, line->move.second);
-      line->explore(game, deep-1);
-      tmp_score += (line->score);
-      scores.push_back(tmp_score);
+    score = (game.isWhiteTurn() ? -INF: INF);
+
+    for(int i=0;i<sorted_ptr.size();i++) {
+      int ptr = sorted_ptr[i].second;
+      const auto &line = lines[ptr];
+  
+      game.doAction(line->move.first.first, line->move.first.second, line->move.second);
+
+      double sc = line->explore(game, deep-1, alpha, beta, cnt);
+      sorted_ptr[i].first = sc;
 
       game.undoAction(); // Rollback
 
       if(first_assign) {
-        score = tmp_score;
+        score = sc;
         first_assign = false;
       } else if(whiteTurn) {
-        score = std::max(score, tmp_score);
+        score = std::max(score, sc);
       } else {
-        score = std::min(score, tmp_score);
+        score = std::min(score, sc);
+      }
+
+      // Alpha-beta prunning (cutoff)
+      if(whiteTurn) {
+        if(cmp(score, beta) != -1) {
+          score += 0.1; // To avoid use this branch as we dont calculate it until the end
+          break;
+        }
+        alpha = std::max(alpha, score);
+      } else {
+        if(cmp(score, alpha) != 1) {
+          score -= 0.1;
+          break;
+        }
+        beta = std::min(beta, score);
       }
     }
+
+    // Heuristic improvement: Sorting to cut the trees earlier
+    if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);
+    else std::sort(sorted_ptr.begin(), sorted_ptr.end(), min_cmp);
+
+    return score;
+  }
+
+  i5 getNextMove(Game &game, int deep, int &cnt) {
+    if(next_line != -1){
+      i5 m = lines[next_line]->move;
+      game.doAction(m.first.first, m.first.second, m.second);
+      i5 ret = lines[next_line]->getNextMove(game, deep, cnt);
+      game.undoAction();
+
+      return ret;
+    }
+
+    double alpha = -INF;
+    double beta = INF;
+    score = explore(game, deep, alpha, beta, cnt);
+    std::cerr << cnt << " nodes generated\n";
+    std::vector<int> goodMoves;
+
+    int cmp_val = (game.isWhiteTurn() ? -1 : 1);
+
+    for(int i=0;i<sorted_ptr.size();i++) {
+      if(cmp(sorted_ptr[i].first, score) == cmp_val) break;
+
+      goodMoves.push_back(sorted_ptr[i].second);
+    }
+
+    int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
+    int choose = goodMoves[pt];
+
+    std::cerr << "future score: " << lines[choose]->score << "\n";
+
+    return lines[choose]->move;
   }
 
   void moveDone(Game &game, i5 move) {
     if(isLinesMissing(game)) createNextLines(game);
 
     if(next_line != -1) {
-      game.doAction(lines[next_line]->move.first.first, lines[next_line]->move.first.second, lines[next_line]->move.second);
+      i5 m = lines[next_line]->move;
+      game.doAction(m.first.first, m.first.second, m.second);
       lines[next_line]->moveDone(game, move);
       game.undoAction();
       return;
@@ -107,29 +192,20 @@ public:
 
     assert(next_line != -1);
   }
-
-  i5 getNextMove(Game &game) {
-    if(isLinesMissing(game)) createNextLines(game);
-
-    if(next_line != -1){
-      i5 m = lines[next_line]->move;
-      game.doAction(m.first.first, m.first.second, m.second);
-      i5 ret = lines[next_line]->getNextMove(game);
-      game.undoAction();
-
-      return ret;
-    }
-
-    int choose = std::uniform_int_distribution<int>(0, (int)lines.size() - 1)(rng);
-
-    return lines[choose]->move;
-  }
 };
 
 class Engine {
 private:
   std::unique_ptr<EngineNode> root;
+  std::vector<i5> cacheMoves;
   Game game;
+
+  void cleanCache() {
+    for(int i=0;i<cacheMoves.size();i++) {
+      root->moveDone(game, cacheMoves[i]);
+    }
+    cacheMoves.clear();
+  }
 
 public:
 
@@ -139,11 +215,14 @@ public:
   }
 
   i5 getNextMove(int deep_size) {
-    return root->getNextMove(game);
+    cleanCache();
+    int cnt = 0;
+    auto ret = root->getNextMove(game, deep_size, cnt);
+    return ret;
   }
 
   void moveDone(i5 move) {
-    root->moveDone(game, move);
+    cacheMoves.push_back(move);
   }
 };
 
