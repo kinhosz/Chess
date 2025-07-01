@@ -224,6 +224,10 @@ public:
   void moveDone(i5 move) {
     cacheMoves.push_back(move);
   }
+
+  void performance() {
+    game.performance();
+  }
 };
 
 #endif

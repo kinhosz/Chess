@@ -34,6 +34,10 @@ private:
   std::map<std::string, int> hashedBoardCounter;
   std::vector<std::vector<std::pair<pii, std::string>>> moves;
 
+  // Performance
+  std::map<std::string, double> elapsed_sec;
+  std::map<std::string, int> called_counter;
+
   GameState getState() const;
   void addState(GameState gs);
 
@@ -65,6 +69,9 @@ public:
   int getTotalMoves() const;
   std::vector<std::pair<pii, pii>> getAllMoves() const;
   double getScore() const;
+
+  // Performance
+  void performance();
 };
 
 #endif

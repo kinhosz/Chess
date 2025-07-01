@@ -213,6 +213,7 @@ private:
     game.doAction(curr_pos, new_pos, choose);
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();
+    engine.performance();
     std::cerr << "Score: " << game.getScore() << "\n";
     std::cerr << "---------------\n";
   }

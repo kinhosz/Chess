@@ -1,4 +1,6 @@
 #include <Game.hpp>
+#include <chrono>
+#include <iomanip>
 
 Game::Game() {
   GameState gs;
@@ -436,6 +438,7 @@ void Game::undoAction() {
 }
 
 void Game::doAction(pii current_pos, pii new_pos, int choose) {
+  std::clock_t t = std::clock();
   assert(isAvailable(current_pos, new_pos));
 
   const GameState curr_gs = getState();
@@ -527,6 +530,10 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   }
 
   addState(new_gs);
+
+  t = (std::clock() - t);
+  elapsed_sec["doAction"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["doAction"]++;
 }
 
 bool Game::hasMoveFor(pii pos) const {
@@ -598,4 +605,24 @@ std::vector<std::pair<pii, pii>> Game::getAllMoves() const {
 
 double Game::getScore() const {
   return getState().gameScore;
+}
+
+// Performance
+void Game::performance() {
+  std::cerr << "----------------------\n";
+  std::cerr << "PERF ANALYSIS\n\n";
+  for(const auto &data: elapsed_sec) {
+    const std::string &f = data.first;
+    int cnt = called_counter.at(f);
+    double ms = (data.second / cnt);
+    std::cerr << std::fixed << std::setprecision(3);
+
+    std::cerr << "Function: " << f << "\n";
+    std::cerr << "* Total time:     " << (data.second / (1000.0)) << "s\n";
+    std::cerr << "* function calls: " << cnt << "\n";
+    std::cerr << "* average time:   " << ms << "ms\n\n"; 
+  }
+
+  elapsed_sec.clear();
+  called_counter.clear();
 }
