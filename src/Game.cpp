@@ -615,8 +615,7 @@ bool Game::isPawnPromotion(pii curr_pos, pii new_pos) {
   return (board[curr_pos.first][curr_pos.second][1] == 'p' && new_pos.second == promotion_y);
 }
 
-bool Game::drawConditions(const GameState &gs) {
-  std::clock_t t = std::clock();
+bool Game::drawConditions(const GameState &gs) const {
   // Repetition
   if(gs.repetition) return true;
 
@@ -640,10 +639,6 @@ bool Game::drawConditions(const GameState &gs) {
   }
 
   if(isInsufficient) return true;
-
-  t = (std::clock() - t);
-  elapsed_sec["drawConditions"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["drawConditions"]++;
   // All checks have been passed
   return false;
 }
@@ -656,12 +651,9 @@ std::vector<std::pair<pii, pii>> Game::getAllMoves() {
   return nextMoves;
 }
 
-double Game::getScore() {
-  GameState st = getState();
+double Game::getScore() const {
 
-  double p_s = (st.moves_white - st.moves_black) / 36.0;
-
-  return getState().gameScore + p_s;
+  return getState().gameScore;
 }
 
 // Performance

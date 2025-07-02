@@ -94,13 +94,8 @@ public:
     double first_assign = true;
     bool whiteTurn = game.isWhiteTurn();
 
-    std::vector<double> past_scores;
-    for(int i=0;i<sorted_ptr.size();i++) past_scores.push_back(sorted_ptr[i].first);
-    int break_i = -1;
-    double d_a = alpha;
-    double d_b = beta;
-
     score = (game.isWhiteTurn() ? -INF: INF);
+    int break_i = sorted_ptr.size();
 
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
@@ -125,14 +120,14 @@ public:
       // Alpha-beta prunning (cutoff)
       if(whiteTurn) {
         if(cmp(score, beta) != -1) {
-          score += 0.01; // To avoid use this branch as we dont calculate it until the end
+          score = 1000.0; // To avoid use this branch as we dont calculate it until the end
           break_i = i;
           break;
         }
         alpha = std::max(alpha, score);
       } else {
         if(cmp(score, alpha) != 1) {
-          score -= 0.01;
+          score = -1000.0;
           break_i = i;
           break;
         }
@@ -140,22 +135,9 @@ public:
       }
     }
 
-    std::vector<double> present_scores;
-    for(int i=0;i<sorted_ptr.size();i++) {
-      present_scores.push_back(sorted_ptr[i].first);
+    for(int i=break_i;i<sorted_ptr.size();i++) {
+      sorted_ptr[i].first = score;
     }
-
-
-    // std::cout << "-------------------------------\n";
-    // std::cout << "Current Turn: " << (whiteTurn ? "White" : "Black") << "\n";
-    // std::cout << "Break point: " << break_i << "/" << sorted_ptr.size() << "\n";
-    // if(whiteTurn) std::cout << "Beta: " << d_b << "\n";
-    // else std::cout << "Alpha: " << d_a << "\n";
-    // std::cout << "Past:\n";
-    // for(int i=0;i<past_scores.size();i++) std::cout << past_scores[i] << " ";
-    // std::cout << "\n";
-    // for(int i=0;i<present_scores.size();i++) std::cout << present_scores[i] << " ";
-    // std::cout << "\n";
 
     // For some reason, sort after is better the before?
     if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);

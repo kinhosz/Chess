@@ -54,7 +54,7 @@ private:
   bool isOnCheck();
   void genNextMoves(const GameState gs);
   pii getKingPos(bool white);
-  bool drawConditions(const GameState &gs);
+  bool drawConditions(const GameState &gs) const;
   void executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs);
   double evaluatePiece(std::string piece);
 
@@ -73,7 +73,7 @@ public:
   bool isAvailable(pii curr_pos, pii new_pos);
   int getTotalMoves() const;
   std::vector<std::pair<pii, pii>> getAllMoves();
-  double getScore();
+  double getScore() const;
 
   // Performance
   void performance();
