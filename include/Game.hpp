@@ -49,7 +49,7 @@ private:
   void buildBoard();
   std::string getBoardHash();
   int storeHashedBoard();
-  std::string getPositionInfo(int x, int y);
+  std::string getPositionInfo(int x, int y) const;
   bool isValidMove(pii curr_pos, pii new_pos);
   bool isOnCheck();
   void genNextMoves(const GameState gs);
@@ -74,6 +74,7 @@ public:
   int getTotalMoves() const;
   std::vector<std::pair<pii, pii>> getAllMoves();
   double getScore() const;
+  double getCellScore(int x, int y) const;
 
   // Performance
   void performance();

@@ -153,7 +153,7 @@ void Game::buildBoard() {
   storeHashedBoard();
 }
 
-std::string Game::getPositionInfo(int x, int y) {
+std::string Game::getPositionInfo(int x, int y) const {
   if(x < 0 || x > 7 || y < 0 || y > 7) return "out";
   return board[x][y];
 }
@@ -674,4 +674,22 @@ void Game::performance() {
 
   elapsed_sec.clear();
   called_counter.clear();
+}
+
+double Game::getCellScore(int x, int y) const {
+  std::string info = getPositionInfo(x, y);
+  assert(info != "out");
+
+  if(info == "") return 0.0;
+  double sc = 0.0;
+  if(info[1] == 'p') sc = 1.0;
+  else if(info[1] == 'r') sc = 5.0;
+  else if(info[1] == 'n') sc = 3.0;
+  else if(info[1] == 'b') sc = 3.0;
+  else if(info[1] == 'q') sc = 9.0;
+  else if(info[1] == 'k') sc = 0.0;
+
+  if(info[0] == 'b') sc *= -1.0;
+
+  return sc;
 }

@@ -58,6 +58,8 @@ private:
 
       sorted_ptr.push_back({0.0, i});
     }
+  
+    std::shuffle(sorted_ptr.begin(), sorted_ptr.end(), rng);
   }
 
   bool isLinesMissing(const Game& game) const {
@@ -96,6 +98,8 @@ public:
 
     score = (game.isWhiteTurn() ? -INF: INF);
     int break_i = sorted_ptr.size();
+  
+    double curr_game_score = game.getScore();
 
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
@@ -104,6 +108,10 @@ public:
       game.doAction(line->move.first.first, line->move.first.second, line->move.second);
 
       double sc = line->explore(game, deep-1, alpha, beta, cnt);
+
+      // Preventing get less captures on the last level
+      if(deep == 1 && cmp(curr_game_score, sc) != 0) sc += -game.getCellScore(move.first.second.first, move.first.second.second);
+
       sorted_ptr[i].first = sc;
 
       game.undoAction(); // Rollback
@@ -203,15 +211,7 @@ public:
 class Engine {
 private:
   std::unique_ptr<EngineNode> root;
-  std::vector<i5> cacheMoves;
   Game game;
-
-  void cleanCache() {
-    for(int i=0;i<cacheMoves.size();i++) {
-      root->moveDone(game, cacheMoves[i]);
-    }
-    cacheMoves.clear();
-  }
 
 public:
 
@@ -221,14 +221,13 @@ public:
   }
 
   i5 getNextMove(int deep_size) {
-    cleanCache();
     int cnt = 0;
     auto ret = root->getNextMove(game, deep_size, cnt);
     return ret;
   }
 
   void moveDone(i5 move) {
-    cacheMoves.push_back(move);
+    root->moveDone(game, move);
   }
 
   void performance() {
