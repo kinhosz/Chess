@@ -41,7 +41,7 @@ private:
   std::vector<std::unique_ptr<EngineNode>> lines;
   std::vector<std::pair<double, int>> sorted_ptr;
 
-  void createNextLines(const Game& game) {
+  void createNextLines(Game& game) {
     const auto& moves = game.getAllMoves();
 
     bool isWhiteTurn = game.isWhiteTurn();
@@ -56,8 +56,7 @@ private:
         lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1), level + 1));
       }
 
-      if(isWhiteTurn) sorted_ptr.push_back({-INF, i});
-      else sorted_ptr.push_back({INF, i});
+      sorted_ptr.push_back({0.0, i});
     }
   }
 
@@ -95,6 +94,12 @@ public:
     double first_assign = true;
     bool whiteTurn = game.isWhiteTurn();
 
+    std::vector<double> past_scores;
+    for(int i=0;i<sorted_ptr.size();i++) past_scores.push_back(sorted_ptr[i].first);
+    int break_i = -1;
+    double d_a = alpha;
+    double d_b = beta;
+
     score = (game.isWhiteTurn() ? -INF: INF);
 
     for(int i=0;i<sorted_ptr.size();i++) {
@@ -120,20 +125,39 @@ public:
       // Alpha-beta prunning (cutoff)
       if(whiteTurn) {
         if(cmp(score, beta) != -1) {
-          score += 0.1; // To avoid use this branch as we dont calculate it until the end
+          score += 0.01; // To avoid use this branch as we dont calculate it until the end
+          break_i = i;
           break;
         }
         alpha = std::max(alpha, score);
       } else {
         if(cmp(score, alpha) != 1) {
-          score -= 0.1;
+          score -= 0.01;
+          break_i = i;
           break;
         }
         beta = std::min(beta, score);
       }
     }
 
-    // Heuristic improvement: Sorting to cut the trees earlier
+    std::vector<double> present_scores;
+    for(int i=0;i<sorted_ptr.size();i++) {
+      present_scores.push_back(sorted_ptr[i].first);
+    }
+
+
+    // std::cout << "-------------------------------\n";
+    // std::cout << "Current Turn: " << (whiteTurn ? "White" : "Black") << "\n";
+    // std::cout << "Break point: " << break_i << "/" << sorted_ptr.size() << "\n";
+    // if(whiteTurn) std::cout << "Beta: " << d_b << "\n";
+    // else std::cout << "Alpha: " << d_a << "\n";
+    // std::cout << "Past:\n";
+    // for(int i=0;i<past_scores.size();i++) std::cout << past_scores[i] << " ";
+    // std::cout << "\n";
+    // for(int i=0;i<present_scores.size();i++) std::cout << present_scores[i] << " ";
+    // std::cout << "\n";
+
+    // For some reason, sort after is better the before?
     if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);
     else std::sort(sorted_ptr.begin(), sorted_ptr.end(), min_cmp);
 
@@ -156,13 +180,13 @@ public:
     std::cerr << cnt << " nodes generated\n";
     std::vector<int> goodMoves;
 
-    int cmp_val = (game.isWhiteTurn() ? -1 : 1);
+    int score_int = score * 10;
 
     for(int i=0;i<sorted_ptr.size();i++) {
-      if(cmp(sorted_ptr[i].first, score) == cmp_val) break;
-
-      goodMoves.push_back(sorted_ptr[i].second);
+      int curr_score_int = sorted_ptr[i].first * 10;
+      if(curr_score_int == score_int) goodMoves.push_back(sorted_ptr[i].second);
     }
+    std::cerr << "good moves: " << goodMoves.size() << "\n";
 
     int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
     int choose = goodMoves[pt];

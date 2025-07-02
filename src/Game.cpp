@@ -2,15 +2,37 @@
 #include <chrono>
 #include <iomanip>
 
+std::map<std::string, int> piece_pos = {
+  {"wr", 0}, {"wn", 1}, {"wb", 2}, {"wq", 4}, {"wp", 5},
+  {"br", 6}, {"bn", 7}, {"bb", 8}, {"bq", 10}, {"bp", 11},
+  {"", -1}, {"wk", -1}, {"bk", -1}
+};
+
 Game::Game() {
+  buildBoard();
+
   GameState gs;
   gs.gameStatus = "alive";
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
   gs.gameScore = 0.0;
-  addState(gs);
+  gs.moves_white = 0;
+  gs.moves_black = 0;
+  gs.repetition = false;
+  gs.pieces_counter.resize(12, 0);
 
-  buildBoard();
+  for(int i=0;i<8;i++) {
+    for(int j=0;j<8;j++) {
+      int id = piece_pos[board[i][j]];
+      if(id == -1) continue;
+      if(id == 2 || id == 8) {
+        id += (i%2 + j%2)%2;
+      }
+      gs.pieces_counter[id]++;
+    }
+  }
+
+  addState(gs);
   genNextMoves(gs);
 }
 
@@ -26,7 +48,7 @@ bool Game::isWhiteTurn() const {
   return ((int)moves.size() % 2) == 0;
 }
 
-std::vector<std::vector<std::string>> Game::getBoard(int move_id) const {
+std::vector<std::vector<std::string>> Game::getBoard(int move_id) {
   if(move_id == -1) move_id = moves.size();
 
   std::vector<std::vector<std::string>> tmp = board;
@@ -40,7 +62,7 @@ std::vector<std::vector<std::string>> Game::getBoard(int move_id) const {
   return tmp;
 }
 
-std::string Game::getBoardHash() const {
+std::string Game::getBoardHash() {
   std::string hsh = "";
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
@@ -52,11 +74,13 @@ std::string Game::getBoardHash() const {
   return hsh;
 }
 
-void Game::storeHashedBoard() {
-  hashedBoardCounter[getBoardHash()]++;
+int Game::storeHashedBoard() {
+  const std::string &hsh = getBoardHash();
+  hashedBoardCounter[hsh]++;
+  return hashedBoardCounter[hsh];
 }
 
-std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) const {
+std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) {
   std::vector<std::pair<pii, int>> cells;
   if(isDraw()) {
     cells.push_back({getKingPos(true), -1});
@@ -72,7 +96,7 @@ std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) const {
   return cells;
 }
 
-pii Game::getKingPos(bool white) const {
+pii Game::getKingPos(bool white) {
   std::string king = (white ? "wk" : "bk");
 
   int king_x = -1, king_y = -1;
@@ -129,12 +153,13 @@ void Game::buildBoard() {
   storeHashedBoard();
 }
 
-std::string Game::getPositionInfo(int x, int y) const {
+std::string Game::getPositionInfo(int x, int y) {
   if(x < 0 || x > 7 || y < 0 || y > 7) return "out";
   return board[x][y];
 }
 
-bool Game::isOnCheck() const {
+bool Game::isOnCheck() {
+  std::clock_t t = std::clock();
   pii king_pos = getKingPos(isWhiteTurn());
   int king_x = king_pos.first;
   int king_y = king_pos.second;
@@ -197,6 +222,9 @@ bool Game::isOnCheck() const {
     if(isWhiteTurn() && (info == "br" || info == "bq")) return true;
     if(!isWhiteTurn() && (info == "wr" || info == "wq")) return true;
   }
+  t = (std::clock() - t);
+  elapsed_sec["isOnCheck"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["isOnCheck"]++;
   return false;
 }
 
@@ -222,6 +250,7 @@ bool Game::isValidMove(pii curr_pos, pii new_pos) {
 }
 
 void Game::genNextMoves(const GameState gs) {
+  std::clock_t t = std::clock();
   nextMoves.clear();
 
   std::vector<std::pair<std::string, pii>> setup;
@@ -388,9 +417,12 @@ void Game::genNextMoves(const GameState gs) {
       }
     }
   }
+  t = (std::clock() - t);
+  elapsed_sec["genNextMoves"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["genNextMoves"]++;
 }
 
-double Game::evaluatePiece(std::string piece) const {
+double Game::evaluatePiece(std::string piece) {
   if(piece == "") return 0.0;
   int mult = (piece[0] == 'w' ? 1.0 : -1.0);
 
@@ -405,7 +437,8 @@ double Game::evaluatePiece(std::string piece) const {
   return mult * value;
 }
 
-double Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
+void Game::executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs) {
+  std::clock_t t = std::clock();
   std::vector<std::pair<pii, std::string>> rollback;
   double score = 0.0;
 
@@ -416,11 +449,28 @@ double Game::executeMove(std::vector<std::pair<pii, std::string>> &move) {
 
     score -= evaluatePiece(curr_piece);
     score += evaluatePiece(m.second);
+
+    std::vector<std::pair<std::string, int>> tmp;
+    tmp.push_back({curr_piece, -1});
+    tmp.push_back({m.second, 1});
+
+    for(auto &t: tmp) {
+      int id = piece_pos[t.first];
+      if(id == 2 || id == 8) {
+        id += (m.first.first%2 + m.first.second%2)%2;
+      }
+      if(id == -1) continue;
+
+      gs.pieces_counter[id] += t.second;
+    }
   }
 
   moves.push_back(rollback);
+  gs.gameScore += score;
 
-  return score;
+  t = (std::clock() - t);
+  elapsed_sec["executeMove"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["executeMove"]++;
 }
 
 void Game::undoAction() {
@@ -507,8 +557,8 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
 
   }
-  new_gs.gameScore += executeMove(current_move);
-  storeHashedBoard();
+  executeMove(current_move, new_gs);
+  new_gs.repetition = storeHashedBoard() == 3;
 
   if(piece == "wk") new_gs.touch(0), new_gs.touch(1);
   if(piece == "bk") new_gs.touch(2), new_gs.touch(3);
@@ -519,7 +569,10 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
 
   genNextMoves(new_gs);
 
-  if(drawConditions()) {
+  if(isWhiteTurn()) new_gs.moves_white = nextMoves.size();
+  else new_gs.moves_black = nextMoves.size();
+
+  if(drawConditions(new_gs)) {
     new_gs.gameStatus = "draw";
     new_gs.gameScore = 0.0;
   }
@@ -536,21 +589,25 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   called_counter["doAction"]++;
 }
 
-bool Game::hasMoveFor(pii pos) const {
+bool Game::hasMoveFor(pii pos) {
   for(int i=0;i<nextMoves.size();i++) {
     if(nextMoves[i].first == pos) return true;
   }
   return false;
 }
 
-bool Game::isAvailable(pii curr_pos, pii new_pos) const {
+bool Game::isAvailable(pii curr_pos, pii new_pos) {
+  std::clock_t t = std::clock();
   for(int i=0;i<nextMoves.size();i++) {
     if(nextMoves[i].first == curr_pos && nextMoves[i].second == new_pos) return true;
   }
+  t = (std::clock() - t);
+  elapsed_sec["doAction"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["doAction"]++;
   return false;
 }
 
-bool Game::isPawnPromotion(pii curr_pos, pii new_pos) const {
+bool Game::isPawnPromotion(pii curr_pos, pii new_pos) {
   if(!isAvailable(curr_pos, new_pos)) return false;
 
   int promotion_y = (isWhiteTurn() ? 0 : 7);
@@ -558,39 +615,35 @@ bool Game::isPawnPromotion(pii curr_pos, pii new_pos) const {
   return (board[curr_pos.first][curr_pos.second][1] == 'p' && new_pos.second == promotion_y);
 }
 
-bool Game::drawConditions() const {
+bool Game::drawConditions(const GameState &gs) {
+  std::clock_t t = std::clock();
+  // Repetition
+  if(gs.repetition) return true;
+
   // Stalemate
   if(nextMoves.size() == 0) return true;
   // Insufficient mating material
-  int material = 0;
-  /*********************
-  0: nothing
-  1: knight
-  2: white bishop
-  3: black bishop
-  **********************/
   bool isInsufficient = true;
-  for(int i=0;i<8 && isInsufficient;i++) {
-    for(int j=0;j<8 && isInsufficient;j++) {
-      if(board[i][j] == "" || board[i][j][1] == 'k') continue;
-      else if(board[i][j][1] == 'p' || board[i][j][1] == 'q' || board[i][j][1] == 'r') isInsufficient = false;
-      else if(board[i][j][1] == 'n') {
-        if(material == 0) material = 1;
-        else isInsufficient = false;
-      } else {
-        int c = ((j + (i % 2)) % 2 == 0 ? 2 : 3);
-        if(material == 0) material = c;
-        else if(material != c) isInsufficient = false;
-      }
+  int total_pieces = 0;
+  for(int i=0;i<gs.pieces_counter.size();i++) {
+    total_pieces += gs.pieces_counter[i];
+  }
+
+  if(total_pieces > 2) isInsufficient = false;
+  else if(total_pieces == 2) {
+    if(gs.pieces_counter[2] + gs.pieces_counter[8] != 2 && gs.pieces_counter[3] + gs.pieces_counter[9] != 2) isInsufficient = false;
+  } else if(total_pieces == 1) {
+    const std::vector<int> pos = {0, 4, 5, 6, 10, 11};
+    for(auto &p: pos) {
+      if(gs.pieces_counter[p] > 0) isInsufficient = false;
     }
   }
+
   if(isInsufficient) return true;
 
-  // Repetition
-  for(auto &p: hashedBoardCounter) {
-    if(p.second >= 3) return true;
-  }
-
+  t = (std::clock() - t);
+  elapsed_sec["drawConditions"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["drawConditions"]++;
   // All checks have been passed
   return false;
 }
@@ -599,12 +652,16 @@ int Game::getTotalMoves() const {
   return moves.size();
 }
 
-std::vector<std::pair<pii, pii>> Game::getAllMoves() const {
+std::vector<std::pair<pii, pii>> Game::getAllMoves() {
   return nextMoves;
 }
 
-double Game::getScore() const {
-  return getState().gameScore;
+double Game::getScore() {
+  GameState st = getState();
+
+  double p_s = (st.moves_white - st.moves_black) / 36.0;
+
+  return getState().gameScore + p_s;
 }
 
 // Performance

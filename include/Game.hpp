@@ -13,6 +13,11 @@ struct GameState {
   int castlingPreserved;
   std::string gameStatus;
   double gameScore;
+  int moves_white;
+  int moves_black;
+  bool repetition;
+
+  std::vector<int> pieces_counter;
 
   bool isCastlingPreserved(int id) const {
     // 0: o-o-o white, 1: o-o white, 2: o-o-o black, 3: o-o black
@@ -42,33 +47,33 @@ private:
   void addState(GameState gs);
 
   void buildBoard();
-  std::string getBoardHash() const;
-  void storeHashedBoard();
-  std::string getPositionInfo(int x, int y) const;
+  std::string getBoardHash();
+  int storeHashedBoard();
+  std::string getPositionInfo(int x, int y);
   bool isValidMove(pii curr_pos, pii new_pos);
-  bool isOnCheck() const;
+  bool isOnCheck();
   void genNextMoves(const GameState gs);
-  pii getKingPos(bool white) const;
-  bool drawConditions() const;
-  double executeMove(std::vector<std::pair<pii, std::string>> &move);
-  double evaluatePiece(std::string piece) const;
+  pii getKingPos(bool white);
+  bool drawConditions(const GameState &gs);
+  void executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs);
+  double evaluatePiece(std::string piece);
 
 public:
   Game();
 
-  std::vector<std::vector<std::string>> getBoard(int move_id=-1) const;
+  std::vector<std::vector<std::string>> getBoard(int move_id=-1);
   void undoAction();
   void doAction(pii current_pos, pii new_pos, int choose=-1);
-  std::vector<std::pair<pii, int>> getSpecialCells(pii cell) const;
+  std::vector<std::pair<pii, int>> getSpecialCells(pii cell);
   bool isDraw() const;
   bool isCheckMate() const;
   bool isWhiteTurn() const;
-  bool hasMoveFor(pii pos) const;
-  bool isPawnPromotion(pii curr_pos, pii new_pos) const;
-  bool isAvailable(pii curr_pos, pii new_pos) const;
+  bool hasMoveFor(pii pos);
+  bool isPawnPromotion(pii curr_pos, pii new_pos);
+  bool isAvailable(pii curr_pos, pii new_pos);
   int getTotalMoves() const;
-  std::vector<std::pair<pii, pii>> getAllMoves() const;
-  double getScore() const;
+  std::vector<std::pair<pii, pii>> getAllMoves();
+  double getScore();
 
   // Performance
   void performance();
