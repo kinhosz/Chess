@@ -27,20 +27,24 @@ const uint64_t RANK8 = 0xff00000000000000;
 
 class Bitboard {
     /* bishop */
+    uint64_t c_bishop[64];
     std::vector<uint64_t> bishop_magic_number;
     std::vector<uint32_t> bishop_shift;
     std::vector<uint32_t> bishop_offset;
     std::vector<uint64_t> bishop_cache;
     /* tower - file */
+    uint64_t c_file[64];
     std::vector<uint64_t> tower_file_magic_number;
     std::vector<uint32_t> tower_file_shift;
     std::vector<uint32_t> tower_file_offset;
     std::vector<uint64_t> tower_file_cache;
     /* tower - rank */
+    uint64_t c_rank[64];
     std::vector<uint64_t> tower_rank_magic_number;
     std::vector<uint32_t> tower_rank_shift;
     std::vector<uint32_t> tower_rank_offset;
     std::vector<uint64_t> tower_rank_cache;
+
 
 private:
     void saveOnMemo(std::string filename, std::vector<uint64_t> &number_container, std::vector<uint32_t> &shift_container) {
@@ -131,6 +135,8 @@ private:
                 mask |= curr_pos;
             }
 
+            c_bishop[i] = mask;
+
             bishop_offset.push_back(offset);
 
             uint64_t reduced_mask = (mask & ~center & ~FILEA & ~FILEH & ~RANK1 & ~RANK8);
@@ -204,6 +210,8 @@ private:
                 curr_pos >>= 8;
             }
 
+            c_file[i] = mask;
+
             tower_file_offset.push_back(offset);
             uint64_t reduced_mask = (mask & ~center & ~RANK1 & ~RANK8);
             std::vector<uint64_t> occ_mask = genMaskOccupancy(reduced_mask);
@@ -261,6 +269,8 @@ private:
                 curr_pos >>= 1;
             }
 
+            c_rank[i] = mask;
+
             tower_rank_offset.push_back(offset);
             uint64_t reduced_mask = (mask & ~center & ~FILEA & ~FILEH);
             std::vector<uint64_t> occ_mask = genMaskOccupancy(reduced_mask);
@@ -299,9 +309,40 @@ private:
         computeTowerFileMoves();
         computeTowerRankMoves();
     }
+
 public:
     Bitboard() {
         preprocess();
+    }
+
+    uint64_t bishop(int cell, uint64_t occupancy) const {
+        occupancy &= c_bishop[cell];
+
+        uint64_t center = (uint64_t(1)<<cell);
+        uint64_t mask = (occupancy & ~center & ~FILEA & ~FILEH & ~RANK1 & ~RANK8);
+
+        int p = ((mask * bishop_magic_number[cell]) >> bishop_shift[cell]) + bishop_offset[cell];
+        return bishop_cache[p];
+    }
+
+    uint64_t tower(int cell, uint64_t occupancy) const {
+        uint64_t file_occ = (occupancy & c_file[cell]);
+        uint64_t rank_occ = (occupancy & c_rank[cell]);
+
+        uint64_t center = (uint64_t(1)<<cell);
+
+        uint64_t fmask = (file_occ & ~center & ~RANK1 & ~RANK8);
+        uint64_t rmask = (rank_occ & ~center & ~FILEA & ~FILEH);
+
+        uint64_t mask = 0;
+
+        int p = ((fmask * tower_file_magic_number[cell]) >> tower_file_shift[cell]) + tower_file_offset[cell];
+        mask |= tower_file_cache[p];
+
+        p = ((rmask * tower_rank_magic_number[cell]) >> tower_rank_shift[cell]) + tower_rank_offset[cell];
+        mask |= tower_rank_cache[p];
+
+        return mask;
     }
 };
 
