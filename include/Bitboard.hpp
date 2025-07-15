@@ -1,6 +1,7 @@
 #ifndef BITBOARD_HPP
 #define BITBOARD_HPP
 
+#include <fstream>
 #include <vector>
 #include <iostream>
 
@@ -30,17 +31,32 @@ class Bitboard {
     std::vector<uint32_t> bishop_shift;
     std::vector<uint32_t> bishop_offset;
     std::vector<uint64_t> bishop_cache;
+    /* tower - file */
+    std::vector<uint64_t> tower_file_magic_number;
+    std::vector<uint32_t> tower_file_shift;
+    std::vector<uint32_t> tower_file_offset;
+    std::vector<uint64_t> tower_file_cache;
+    /* tower - rank */
+    std::vector<uint64_t> tower_rank_magic_number;
+    std::vector<uint32_t> tower_rank_shift;
+    std::vector<uint32_t> tower_rank_offset;
+    std::vector<uint64_t> tower_rank_cache;
 
 private:
     void saveOnMemo(std::string filename, std::vector<uint64_t> &number_container, std::vector<uint32_t> &shift_container) {
-        freopen(filename.c_str(), "r", stdin);
+        std::fstream file;
+        file.open(filename.c_str());
+
+        if(!file.is_open()) {
+            std::cerr << "Failed when openning " + filename + "\n";
+        }
 
         for(int i=0;i<64;i++) {
             int id;
             uint64_t magic;
             uint32_t shift;
 
-            std::cin >> id >> magic >> shift;
+            file >> id >> magic >> shift;
             std::string msg = "file " + filename + " has been failed on line: " + std::to_string(i) + "\n";
             if(id != i) {
                 std::cerr << msg;
@@ -50,8 +66,6 @@ private:
             number_container.push_back(magic);
             shift_container.push_back(shift);
         }
-
-        fclose(stdin);
     }
 
     std::vector<uint64_t> genMaskOccupancy(uint64_t mask) {
@@ -166,10 +180,124 @@ private:
         }
     }
 
+    void computeTowerFileMoves() {
+        saveOnMemo("precompute/magic_numbers/file_tower.txt", tower_file_magic_number, tower_file_shift);
+
+        uint32_t offset = 0;
+
+        for(int i=0;i<64;i++) {
+            uint64_t mask = 0;
+            uint64_t center = (uint64_t(1)<<i);
+
+            mask |= center;
+
+            // << 8
+            uint64_t curr_pos = center;
+            while((curr_pos & RANK8) == 0 && curr_pos != 0) {
+                mask |= curr_pos;
+                curr_pos <<= 8;
+            }
+            // >> 8
+            curr_pos = center;
+            while((curr_pos & RANK1) == 0 && curr_pos != 0) {
+                mask |= curr_pos;
+                curr_pos >>= 8;
+            }
+
+            tower_file_offset.push_back(offset);
+            uint64_t reduced_mask = (mask & ~center & ~RANK1 & ~RANK8);
+            std::vector<uint64_t> occ_mask = genMaskOccupancy(reduced_mask);
+
+            int occ_mask_size = occ_mask.size();
+            for(int j=0;j<occ_mask_size;j++) tower_file_cache.push_back(0);
+
+            for(auto omask: occ_mask) {
+                uint64_t valid_move = center;
+
+                // << 8
+                curr_pos = center;
+                while((curr_pos & RANK8) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
+                    mask |= curr_pos;
+                    curr_pos <<= 8;
+                }
+                // >> 8
+                curr_pos = center;
+                while((curr_pos & RANK1) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
+                    mask |= curr_pos;
+                    curr_pos >>= 8;
+                }
+
+                // after compute the valid move for an occuped mask, save it in the cache
+                int p = ((omask * tower_file_magic_number[i]) >> tower_file_shift[i]) + tower_file_offset[i];
+                assert(tower_file_cache[p] == 0);
+                tower_file_cache[p] = valid_move;
+            }
+
+            offset += occ_mask_size;
+        }
+    }
+
+    void computeTowerRankMoves() {
+        saveOnMemo("precompute/magic_numbers/rank_tower.txt", tower_rank_magic_number, tower_rank_shift);
+
+        uint32_t offset = 0;
+
+        for(int i=0;i<64;i++) {
+            uint64_t mask = 0;
+            uint64_t center = (uint64_t(1)<<i);
+
+            mask |= center;
+
+            // << 1
+            uint64_t curr_pos = center;
+            while((curr_pos & FILEH) == 0 && curr_pos != 0) {
+                mask |= curr_pos;
+                curr_pos <<= 1;
+            }
+            // >> 1
+            curr_pos = center;
+            while((curr_pos & FILEA) == 0 && curr_pos != 0) {
+                mask |= curr_pos;
+                curr_pos >>= 1;
+            }
+
+            tower_rank_offset.push_back(offset);
+            uint64_t reduced_mask = (mask & ~center & ~FILEA & ~FILEH);
+            std::vector<uint64_t> occ_mask = genMaskOccupancy(reduced_mask);
+
+            int occ_mask_size = occ_mask.size();
+            for(int j=0;j<occ_mask_size;j++) tower_rank_cache.push_back(0);
+
+            for(auto omask: occ_mask) {
+                uint64_t valid_move = center;
+
+                // << 1
+                curr_pos = center;
+                while((curr_pos & FILEH) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
+                    mask |= curr_pos;
+                    curr_pos <<= 1;
+                }
+                // >> 1
+                curr_pos = center;
+                while((curr_pos & FILEA) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
+                    mask |= curr_pos;
+                    curr_pos >>= 1;
+                }
+
+                // after compute the valid move for an occuped mask, save it in the cache
+                int p = ((omask * tower_rank_magic_number[i]) >> tower_rank_shift[i]) + tower_rank_offset[i];
+                assert(tower_rank_cache[p] == 0);
+                tower_rank_cache[p] = valid_move;
+            }
+
+            offset += occ_mask_size;
+        }
+    }
+
     void preprocess() {
-        std::cerr << "begin\n";
         computeBishopMoves();
-        std::cerr << "fine\n";
+        computeTowerFileMoves();
+        computeTowerRankMoves();
     }
 public:
     Bitboard() {
