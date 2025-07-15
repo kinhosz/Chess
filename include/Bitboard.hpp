@@ -44,6 +44,8 @@ class Bitboard {
     std::vector<uint32_t> tower_rank_shift;
     std::vector<uint32_t> tower_rank_offset;
     std::vector<uint64_t> tower_rank_cache;
+    /* Knight */
+    uint64_t c_knight[64];
 
 
 private:
@@ -304,10 +306,33 @@ private:
         }
     }
 
+    void isOut(int x, int y) const {
+        return (x < 0 || x > 7 || y < 0 || y > 7);
+    }
+
+    void computeKnight() {
+        int dx[] = {-1, 1, 2, 2, 1, -1, -2, -2};
+        int dy[] = {2, 2, 1, -1, -2, -2, 1, -1};
+
+        for(int x=0;x<8;x++) {
+            for(int y=0;y<8;y++) {
+                uint64_t mask = 0;
+                int p = (x * 8) + y;
+                for(int i=0;i<8;i++) {
+                    if(isOut(x + dx[i], y + dy[i])) continue;
+                    int b = ((x + dx[i]) * 8) + y + dy[i];
+                    mask |= (uint64_t(1)<<b);
+                }
+                c_knight[p] = mask;
+            }
+        }
+    }
+
     void preprocess() {
         computeBishopMoves();
         computeTowerFileMoves();
         computeTowerRankMoves();
+        computeKnight();
     }
 
 public:
@@ -343,6 +368,18 @@ public:
         mask |= tower_rank_cache[p];
 
         return mask;
+    }
+
+    uint64_t knight(int cell) const {
+        return c_knight[cell];
+    }
+
+    uint64_t king(int cell) const {
+
+    }
+
+    uint64_t pawn(int cell, int side) const {
+
     }
 };
 
