@@ -46,6 +46,10 @@ class Bitboard {
     std::vector<uint64_t> tower_rank_cache;
     /* Knight */
     uint64_t c_knight[64];
+    /* King */
+    uint64_t c_king[64];
+    /* Pawns */
+    uint64_t c_pawn[2][64];
 
 
 private:
@@ -306,7 +310,7 @@ private:
         }
     }
 
-    void isOut(int x, int y) const {
+    bool isOut(int x, int y) const {
         return (x < 0 || x > 7 || y < 0 || y > 7);
     }
 
@@ -328,11 +332,70 @@ private:
         }
     }
 
+    void computeKing() {
+        int dx[] = {-1, 0, 1, -1, 1, -1, 0, 1};
+        int dy[] = {1, 1, 1, 0, 0, -1, -1, -1};
+
+        for(int x=0;x<8;x++) {
+            for(int y=0;y<8;y++) {
+                uint64_t mask = 0;
+                int p = (x * 8) + y;
+
+                for(int i=0;i<8;i++) {
+                    if(isOut(x + dx[i], y + dy[i])) continue;
+                    int b = ((x + dx[i]) * 8) + y + dy[i];
+                    mask |= (uint64_t(1)<<b);
+                }
+                c_king[p] = mask;
+            }
+        }
+    }
+
+    void computePawns() {
+        for(int side = 0; side<=1;side++) {
+            for(int x=0;x<8;x++) {
+                for(int y=0;y<8;y++) {
+                    uint64_t mask = 0;
+                    int b;
+
+                    if(side == 0) {
+                        /* White King */
+                        if(!isOut(x-1, y+1)) {
+                            b = ((x-1) * 8) + y + 1;
+                            mask |= (uint64_t(1)<<b);
+                        } 
+                        if(!isOut(x+1, y+1)) {
+                            b = ((x+1) * 8) + y + 1;
+                            mask |= (uint64_t(1)<<b);
+                        }
+
+                        c_pawn[0][(x * 8) + y] = mask;
+
+                    } else {
+                        /* Black King */
+                        if(!isOut(x-1, y-1)) {
+                            b = ((x-1) * 8) + y - 1;
+                            mask |= (uint64_t(1)<<b);
+                        } 
+                        if(!isOut(x+1, y-1)) {
+                            b = ((x+1) * 8) + y - 1;
+                            mask |= (uint64_t(1)<<b);
+                        }
+
+                        c_pawn[1][(x * 8) + y] = mask;
+                    }
+                }
+            }
+        }
+    }
+
     void preprocess() {
         computeBishopMoves();
         computeTowerFileMoves();
         computeTowerRankMoves();
         computeKnight();
+        computeKing();
+        computePawns();
     }
 
 public:
@@ -375,11 +438,11 @@ public:
     }
 
     uint64_t king(int cell) const {
-
+        return c_king[cell];
     }
 
     uint64_t pawn(int cell, int side) const {
-
+        return c_pawn[side][cell];
     }
 };
 
