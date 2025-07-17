@@ -1,6 +1,6 @@
 CXX := g++
-CXXFLAGS := -std=c++17 -Iinclude -Ilib/SFML-3.0.0/include -Wno-narrowing
-LDFLAGS := -Llib/SFML-3.0.0/lib -Wl,-rpath=lib/SFML-3.0.0/lib -lsfml-graphics -lsfml-window -lsfml-system
+CXXFLAGS := -std=c++17 -Iinclude -Ilib/SFML -Wno-narrowing
+LDFLAGS := -Llib/SFML -Wl,-rpath=lib/SFML -lsfml-graphics -lsfml-window -lsfml-system
 
 SRC_DIR := src
 OBJ_DIR := obj
@@ -26,8 +26,11 @@ $(OBJ_DIR):
 
 # make run
 run: all
-	LD_LIBRARY_PATH=lib/SFML-3.0.0/lib ./$(BIN)
+	LD_LIBRARY_PATH=lib/SFML ./$(BIN)
 
 # make clean
 clean:
 	rm -rf $(OBJ_DIR) $(BIN)
+
+include scripts/dependencies/install.mk
+
