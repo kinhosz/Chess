@@ -403,6 +403,16 @@ public:
         preprocess();
     }
 
+    int grid2bit(int x, int y) const {
+        // x: A -> H
+        // y: 8 -> 1
+        return x + (7 - y) * 8;
+    }
+
+    uint64_t bit2mask(int b) const {
+        return (uint64_t(1) << b);
+    }
+
     uint64_t bishop(int cell, uint64_t occupancy) const {
         occupancy &= c_bishop[cell];
 
@@ -413,7 +423,7 @@ public:
         return bishop_cache[p];
     }
 
-    uint64_t tower(int cell, uint64_t occupancy) const {
+    uint64_t rook(int cell, uint64_t occupancy) const {
         uint64_t file_occ = (occupancy & c_file[cell]);
         uint64_t rank_occ = (occupancy & c_rank[cell]);
 
@@ -445,5 +455,8 @@ public:
         return c_pawn[side][cell];
     }
 };
+
+// Constant global reference
+const Bitboard bitboard;
 
 #endif

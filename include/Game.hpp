@@ -43,6 +43,16 @@ private:
   std::map<std::string, double> elapsed_sec;
   std::map<std::string, int> called_counter;
 
+  // Bitboard
+  uint64_t board_mask;
+  std::vector<uint64_t> bishop_mask;
+
+  void boardMaskOccupancy();
+  void bishopMaskOccupancy();
+  void setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position);
+
+  void setBoard(int x, int y, std::string piece);
+
   GameState getState() const;
   void addState(GameState gs);
 

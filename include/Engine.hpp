@@ -93,7 +93,7 @@ public:
     if(game.isDraw() || game.isCheckMate()) return score;
     if(isLinesMissing(game)) createNextLines(game);
 
-    double first_assign = true;
+    bool first_assign = true;
     bool whiteTurn = game.isWhiteTurn();
 
     score = (game.isWhiteTurn() ? -INF: INF);
@@ -104,7 +104,7 @@ public:
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
       const auto &line = lines[ptr];
-  
+
       game.doAction(line->move.first.first, line->move.first.second, line->move.second);
 
       double sc = line->explore(game, deep-1, alpha, beta, cnt);
@@ -167,7 +167,6 @@ public:
     double alpha = -INF;
     double beta = INF;
     score = explore(game, deep, alpha, beta, cnt);
-    std::cerr << cnt << " nodes generated\n";
     std::vector<int> goodMoves;
 
     int score_int = score * 10;
@@ -176,12 +175,10 @@ public:
       int curr_score_int = sorted_ptr[i].first * 10;
       if(curr_score_int == score_int) goodMoves.push_back(sorted_ptr[i].second);
     }
-    std::cerr << "good moves: " << goodMoves.size() << "\n";
 
     int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
     int choose = goodMoves[pt];
 
-    std::cerr << "future score: " << lines[choose]->score << "\n";
 
     return lines[choose]->move;
   }
