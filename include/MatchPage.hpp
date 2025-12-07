@@ -94,6 +94,12 @@ private:
     buttons.push_back(Button(x0, x0 + SQUARE_SIZE, y0, y0 + SQUARE_SIZE));
     buttons[buttons.size()-1].setGroup("action");
     buttons[buttons.size()-1].setName("next-move");
+
+    // Debugger
+    x0 += SQUARE_SIZE;
+    buttons.push_back(Button(x0, x0 + SQUARE_SIZE / 4, y0, y0 + SQUARE_SIZE / 4));
+    buttons[buttons.size()-1].setGroup("action");
+    buttons[buttons.size()-1].setName("debugger");
   }
 
   sf::RectangleShape createSquare(float x, float y, sf::Color c) {
@@ -249,6 +255,8 @@ private:
     } else if(buttons[button_id].getName() == "next-move") {
       move.clear();
       move_counter = std::min(game.getTotalMoves(), move_counter + 1);
+    } else if(buttons[button_id].getName() == "debugger") {
+      game.debugger();
     }
   }
 

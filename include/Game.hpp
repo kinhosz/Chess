@@ -128,6 +128,9 @@ public:
 
   // Performance
   void performance();
+
+  // Debugger;
+  void debugger();
 };
 
 #endif

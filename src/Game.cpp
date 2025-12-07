@@ -922,3 +922,7 @@ double Game::getCellScore(int x, int y) const {
 
   return evaluatePiece(info);
 }
+
+void Game::debugger() {
+  genNextMoves();
+}

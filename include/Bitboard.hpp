@@ -386,6 +386,7 @@ private:
     }
 
     void preprocess() {
+        freopen("log.txt", "w", stdout);
         computeBishopMoves();
         computeTowerFileMoves();
         computeTowerRankMoves();
@@ -403,6 +404,21 @@ public:
         int y = (7 - b/8);
         int x = b%8;
         return std::make_pair(x, y);
+    }
+
+    void bitPrinter(uint64_t mask) const {
+        std::cout << "--------------bit printer ------------\n";
+        std::string txt = "";
+        for(int i=0;i<8;i++) {
+            std::string line = "";
+            for(int j=0;j<8;j++) {
+                int id = i * 8 + j;
+                if((mask&(uint64_t(1)<<id))) line += "X";
+                else line += "0";
+            }
+            txt = line + "\n" + txt;
+        }
+        std::cout << txt << std::endl;
     }
 
     int grid2bit(int x, int y) const {
