@@ -206,14 +206,14 @@ private:
             // << 8
             uint64_t curr_pos = center;
             while((curr_pos & RANK8) == 0 && curr_pos != 0) {
-                mask |= curr_pos;
                 curr_pos <<= 8;
+                mask |= curr_pos;
             }
             // >> 8
             curr_pos = center;
             while((curr_pos & RANK1) == 0 && curr_pos != 0) {
-                mask |= curr_pos;
                 curr_pos >>= 8;
+                mask |= curr_pos;
             }
 
             c_file[i] = mask;
@@ -231,14 +231,14 @@ private:
                 // << 8
                 curr_pos = center;
                 while((curr_pos & RANK8) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
-                    mask |= curr_pos;
                     curr_pos <<= 8;
+                    valid_move |= curr_pos;
                 }
                 // >> 8
                 curr_pos = center;
                 while((curr_pos & RANK1) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
-                    mask |= curr_pos;
                     curr_pos >>= 8;
+                    valid_move |= curr_pos;
                 }
 
                 // after compute the valid move for an occuped mask, save it in the cache
@@ -265,14 +265,14 @@ private:
             // << 1
             uint64_t curr_pos = center;
             while((curr_pos & FILEH) == 0 && curr_pos != 0) {
-                mask |= curr_pos;
                 curr_pos <<= 1;
+                mask |= curr_pos;
             }
             // >> 1
             curr_pos = center;
             while((curr_pos & FILEA) == 0 && curr_pos != 0) {
-                mask |= curr_pos;
                 curr_pos >>= 1;
+                mask |= curr_pos;
             }
 
             c_rank[i] = mask;
@@ -290,14 +290,14 @@ private:
                 // << 1
                 curr_pos = center;
                 while((curr_pos & FILEH) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
-                    mask |= curr_pos;
                     curr_pos <<= 1;
+                    valid_move |= curr_pos;
                 }
                 // >> 1
                 curr_pos = center;
                 while((curr_pos & FILEA) == 0 && curr_pos != 0 && (curr_pos & omask) == 0) {
-                    mask |= curr_pos;
                     curr_pos >>= 1;
+                    valid_move |= curr_pos;
                 }
 
                 // after compute the valid move for an occuped mask, save it in the cache

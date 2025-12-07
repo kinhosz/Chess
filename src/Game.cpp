@@ -22,10 +22,12 @@ Game::Game() {
   // BitBoard
   board_mask = uint64_t(0);
   bishop_mask.resize(2, 0);
+  rook_mask.resize(2, 0);
 
   buildBoard();
   boardMaskOccupancy();
   bishopMaskOccupancy();
+  rookMaskOccupancy();
 
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
@@ -68,6 +70,21 @@ void Game::bishopMaskOccupancy() {
   }
 }
 
+void Game::rookMaskOccupancy() {
+  for(int side=0;side<2;side++) {
+    char c = (side == 0 ? 'w' : 'b');
+
+    for(int x=0;x<8;x++) {
+      for(int y=0;y<8;y++) {
+        if(board[x][y][0] == c && (board[x][y][1] == 'r' || board[x][y][1] == 'q')) {
+          int b = bitboard.grid2bit(x, y);
+          rook_mask[side] |= bitboard.bit2mask(b);
+        }
+      }
+    }
+  }
+}
+
 void Game::setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position) {
   auto piece_alias = [&](const std::string& piece) {
     if(piece == "") return -1;
@@ -93,6 +110,10 @@ void Game::setMaskPosition(const std::string &prev_piece, const std::string &new
   // bishop mask
   if(piece_alias(prev_piece) == 2 || piece_alias(prev_piece) == 3) bishop_mask[piece_color(prev_piece)] &= ~mask;
   if(piece_alias(new_piece) == 2 || piece_alias(new_piece) == 3) bishop_mask[piece_color(new_piece)] |= mask;
+
+  // rook mask
+  if(piece_alias(prev_piece) == 0 || piece_alias(prev_piece) == 3) rook_mask[piece_color(prev_piece)] &= ~mask;
+  if(piece_alias(new_piece) == 0 || piece_alias(new_piece) == 3) rook_mask[piece_color(new_piece)] |= mask;
 }
 
 void Game::setBoard(int x, int y, std::string piece) {
@@ -254,31 +275,22 @@ bool Game::isOnCheck() {
     if(!isWhiteTurn() && info == "wn") return true;
   }
 
-  // Checked by a Bishop / Queen
-  const GameState &gs = this->getState();
   int black = isWhiteTurn();
   int cell = bitboard.grid2bit(king_x, king_y);
-  uint64_t mask = bitboard.bishop(cell, board_mask);
-  uint64_t b_mask = bishop_mask[black];
+  uint64_t mask;
 
+  // Checked by a Bishop / Queen
+  mask = bitboard.bishop(cell, board_mask);
+  uint64_t b_mask = bishop_mask[black];
   if((mask&b_mask) != uint64_t(0)) return true;
 
   // Checked by a Rook / Queen
-  int dl4[] = {-1, 0, 1, 0};
-  int dc4[] = {0, -1, 0, 1};
-  for(int i=0;i<4;i++) {
-    int t_king_x = king_x + dl4[i];
-    int t_king_y = king_y + dc4[i];
+  mask = bitboard.rook(cell, board_mask);
+  uint64_t r_mask = rook_mask[black];
+  bool new_value = (mask&r_mask) != uint64_t(0);
+  if((mask&r_mask) != uint64_t(0)) return true;
+  
 
-    std::string info = getPositionInfo(t_king_x, t_king_y);
-    while(info == "") {
-      t_king_x += dl4[i];
-      t_king_y += dc4[i];
-      info = getPositionInfo(t_king_x, t_king_y);
-    }
-    if(isWhiteTurn() && (info == "br" || info == "bq")) return true;
-    if(!isWhiteTurn() && (info == "wr" || info == "wq")) return true;
-  }
   t = (std::clock() - t);
   elapsed_sec["isOnCheck"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
   called_counter["isOnCheck"]++;
