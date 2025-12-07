@@ -304,7 +304,7 @@ bool Game::isValidMove(pii curr_pos, pii new_pos) {
   if(new_pos_before == "out") return false;
   if(isWhiteTurn() && (new_pos_before != "" && new_pos_before[0] == 'w')) return false;
   if(!isWhiteTurn() && (new_pos_before != "" && new_pos_before[0] == 'b')) return false;
-  if(new_pos_before[1] == 'k') return false;
+  if(new_pos_before != "" && new_pos_before[1] == 'k') return false;
 
   // Move the piece
   setBoard(curr_pos.first, curr_pos.second, "");
