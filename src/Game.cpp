@@ -231,6 +231,12 @@ int Game::storeHashedBoard() {
 
 std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) {
   std::vector<std::pair<pii, int>> cells;
+  if(moves.size() > 0) {
+    for(auto &m: moves.back()) {
+      cells.push_back({m.first, 3});
+    }
+  }
+
   if(isDraw()) {
     cells.push_back({getKingPos(true), -1});
     cells.push_back({getKingPos(false), -1});

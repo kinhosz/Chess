@@ -2,6 +2,7 @@
 #define MATCHPAGE_HPP
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Graphics/Font.hpp>
 
 #include <Game.hpp>
 #include <Engine.hpp>
@@ -52,9 +53,11 @@ private:
   Game game;
   int move_counter;
 
-  int MATCH_MODE = 3;
+  int MATCH_MODE = 1;
   Engine engine;
   int DEEP_SIZE = 4;
+
+  bool force_refresh = false;
 
   void createButtons() {
     // Board cells
@@ -103,6 +106,19 @@ private:
     return rect;
   }
 
+  void drawText(sf::RenderWindow &window) {
+    std::string msg = "Bot is thinking...";
+
+    sf::Font font("assets/fonts/bitcount_prop_single.ttf");
+    sf::Text text(font);
+    text.setString(msg);
+    text.setCharacterSize(24);
+    text.setFillColor(sf::Color::Black);
+    text.setStyle(sf::Text::Bold);
+    text.setPosition({50 , 10});
+    window.draw(text);
+  }
+
   void drawBoard(sf::RenderWindow &window) {
     sf::RectangleShape rect({WIDTH, HEIGHT});
     rect.setFillColor(sf::Color(255, 255, 255));
@@ -133,6 +149,8 @@ private:
         c = sf::Color(100, 100, 100); // Draw
       } else if(info == 2) {
         c = sf::Color(180, 130, 20); // Assigned Piece
+      } else if(info == 3) {
+        c = sf::Color(0, 153, 255); // Last move
       }
 
       window.draw(createSquare(buttons[x * 8 + y].x0, buttons[x * 8 + y].y0, c));
@@ -214,6 +232,7 @@ private:
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();
     engine.performance();
+    force_refresh = true;
   }
 
   void handlePromotion(int button_id) {
@@ -286,7 +305,10 @@ public:
     drawActionButtons(window);
     if(showPromotionSquare) drawPromotionOption(window);
 
-    botAction();
+    if(force_refresh) force_refresh = false;
+    else botAction();
+
+    if(!isPlayerTurn()) drawText(window);
   }
 
   bool isPlayerTurn() const {
