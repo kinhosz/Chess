@@ -23,11 +23,17 @@ Game::Game() {
   board_mask = uint64_t(0);
   bishop_mask.resize(2, 0);
   rook_mask.resize(2, 0);
+  knight_mask.resize(2, 0);
+  king_mask.resize(2, 0);
+  pawn_mask.resize(2, 0);
 
   buildBoard();
   boardMaskOccupancy();
   bishopMaskOccupancy();
   rookMaskOccupancy();
+  knightMaskOccupancy();
+  kingMaskOccupancy();
+  pawnMaskOccupancy();
 
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
@@ -85,6 +91,51 @@ void Game::rookMaskOccupancy() {
   }
 }
 
+void Game::knightMaskOccupancy() {
+  for(int side=0;side<2;side++) {
+    char c = (side == 0 ? 'w' : 'b');
+
+    for(int x=0;x<8;x++) {
+      for(int y=0;y<8;y++) {
+        if(board[x][y][0] == c && board[x][y][1] == 'n') {
+          int b = bitboard.grid2bit(x, y);
+          knight_mask[side] |= bitboard.bit2mask(b);
+        }
+      }
+    }
+  }
+}
+
+void Game::kingMaskOccupancy() {
+  for(int side=0;side<2;side++) {
+    char c = (side == 0 ? 'w' : 'b');
+
+    for(int x=0;x<8;x++) {
+      for(int y=0;y<8;y++) {
+        if(board[x][y][0] == c && board[x][y][1] == 'k') {
+          int b = bitboard.grid2bit(x, y);
+          king_mask[side] |= bitboard.bit2mask(b);
+        }
+      }
+    }
+  }
+}
+
+void Game::pawnMaskOccupancy() {
+  for(int side=0;side<2;side++) {
+    char c = (side == 0 ? 'w' : 'b');
+
+    for(int x=0;x<8;x++) {
+      for(int y=0;y<8;y++) {
+        if(board[x][y][0] == c && board[x][y][1] == 'p') {
+          int b = bitboard.grid2bit(x, y);
+          pawn_mask[side] |= bitboard.bit2mask(b);
+        }
+      }
+    }
+  }
+}
+
 void Game::setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position) {
   auto piece_alias = [&](const std::string& piece) {
     if(piece == "") return -1;
@@ -114,6 +165,18 @@ void Game::setMaskPosition(const std::string &prev_piece, const std::string &new
   // rook mask
   if(piece_alias(prev_piece) == 0 || piece_alias(prev_piece) == 3) rook_mask[piece_color(prev_piece)] &= ~mask;
   if(piece_alias(new_piece) == 0 || piece_alias(new_piece) == 3) rook_mask[piece_color(new_piece)] |= mask;
+
+  // knight mask
+  if(piece_alias(prev_piece) == 1) knight_mask[piece_color(prev_piece)] &= ~mask;
+  if(piece_alias(new_piece) == 1) knight_mask[piece_color(new_piece)] |= mask;
+
+  // king mask
+  if(piece_alias(prev_piece) == 4) king_mask[piece_color(prev_piece)] &= ~mask;
+  if(piece_alias(new_piece) == 4) king_mask[piece_color(new_piece)] |= mask;
+
+  // pawn mask
+  if(piece_alias(prev_piece) == 5) pawn_mask[piece_color(prev_piece)] &= ~mask;
+  if(piece_alias(new_piece) == 5) pawn_mask[piece_color(new_piece)] |= mask;
 }
 
 void Game::setBoard(int x, int y, std::string piece) {
@@ -250,7 +313,12 @@ bool Game::isOnCheck() {
   int king_x = king_pos.first;
   int king_y = king_pos.second;
 
+  int black = isWhiteTurn();
+  int cell = bitboard.grid2bit(king_x, king_y);
+  uint64_t mask;
+
   // Checked by a Pawn
+  bool old_value = false;
   if(isWhiteTurn()) {
     if(getPositionInfo(king_x-1, king_y-1) == "bp" || getPositionInfo(king_x+1, king_y-1) == "bp") return true;
   } else {
@@ -258,26 +326,14 @@ bool Game::isOnCheck() {
   }
 
   // Checked by a King
-  int dl1[] = {-1, -1, -1, 0, 0, 1, 1, 1};
-  int dc1[] = {-1, 0, 1, -1, 1, -1, 0, 1};
-  for(int i=0;i<8;i++) {
-    std::string info = getPositionInfo(king_x + dl1[i], king_y + dc1[i]);
-    if(isWhiteTurn() && info == "bk") return true;
-    if(!isWhiteTurn() && info == "wk") return true;
-  }
+  mask = bitboard.king(cell);
+  uint64_t k_mask = king_mask[black];
+  if((mask&k_mask) != uint64_t(0)) return true;
 
   // Checked by a Knight
-  int dl2[] = {-2, -2, -1, 1, 2, 2, -1, 1};
-  int dc2[] = {-1, 1, 2, 2, -1, 1, -2, -2};
-  for(int i=0;i<8;i++) {
-    std::string info = getPositionInfo(king_x + dl2[i], king_y + dc2[i]);
-    if(isWhiteTurn() && info == "bn") return true;
-    if(!isWhiteTurn() && info == "wn") return true;
-  }
-
-  int black = isWhiteTurn();
-  int cell = bitboard.grid2bit(king_x, king_y);
-  uint64_t mask;
+  mask = bitboard.knight(cell);
+  uint64_t n_mask = knight_mask[black];
+  if((mask&n_mask) != uint64_t(0)) return true;
 
   // Checked by a Bishop / Queen
   mask = bitboard.bishop(cell, board_mask);
@@ -287,7 +343,6 @@ bool Game::isOnCheck() {
   // Checked by a Rook / Queen
   mask = bitboard.rook(cell, board_mask);
   uint64_t r_mask = rook_mask[black];
-  bool new_value = (mask&r_mask) != uint64_t(0);
   if((mask&r_mask) != uint64_t(0)) return true;
   
 

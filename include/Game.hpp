@@ -47,10 +47,16 @@ private:
   uint64_t board_mask;
   std::vector<uint64_t> bishop_mask;
   std::vector<uint64_t> rook_mask;
+  std::vector<uint64_t> knight_mask;
+  std::vector<uint64_t> king_mask;
+  std::vector<uint64_t> pawn_mask;
 
   void boardMaskOccupancy();
   void bishopMaskOccupancy();
   void rookMaskOccupancy();
+  void knightMaskOccupancy();
+  void kingMaskOccupancy();
+  void pawnMaskOccupancy();
   void setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position);
 
   void setBoard(int x, int y, std::string piece);
