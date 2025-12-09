@@ -109,8 +109,6 @@ public:
 
       double sc = line->explore(game, deep-1, alpha, beta, cnt);
 
-      // Preventing get less captures on the last level
-      if(deep == 1 && cmp(curr_game_score, sc) != 0) sc += -game.getCellScore(move.first.second.first, move.first.second.second);
 
       sorted_ptr[i].first = sc;
 

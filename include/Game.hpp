@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <assert.h>
+#include <math.h>
 
 typedef std::pair<int, int> pii;
 
@@ -12,10 +13,11 @@ struct GameState {
   pii enPassant;
   int castlingPreserved;
   std::string gameStatus;
-  double gameScore;
+  double piecesScoring;
   int moves_white;
   int moves_black;
   bool repetition;
+  int castled;
 
   std::vector<int> pieces_counter;
 
@@ -28,6 +30,25 @@ struct GameState {
   void touch(int id) {
     assert(id >= 0 && id <= 3);
     castlingPreserved |= (1<<id);
+  }
+
+  void doCastling(bool side) {
+    castled |= (1<<side);
+  }
+
+  double scoringHeuristic() const {
+    double sc = (moves_white - moves_black) / sqrt(moves_white + moves_black + 1.0); // moves
+    sc /= 10.0;
+
+    double castling_bonus = 1.5;
+
+    if(castled&1) sc += castling_bonus; // bonus - white castling
+    else if((castlingPreserved&3) == 0) sc += castling_bonus / 2.0;
+
+    if(castled&2) sc -= castling_bonus; // bonus - black castling
+    else if((castlingPreserved&12) == 0) sc -= castling_bonus / 2.0;
+
+    return sc;
   }
 };
 

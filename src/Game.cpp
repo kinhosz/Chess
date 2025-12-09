@@ -14,11 +14,12 @@ Game::Game() {
   gs.gameStatus = "alive";
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
-  gs.gameScore = 0.0;
+  gs.piecesScoring = 0.0;
   gs.moves_white = 0;
   gs.moves_black = 0;
   gs.repetition = false;
   gs.pieces_counter.resize(12, 0);
+  gs.castled = 0;
   // BitBoard
   board_mask = uint64_t(0);
   bishop_mask.resize(2, 0);
@@ -596,7 +597,7 @@ void Game::executeMove(std::vector<std::pair<pii, std::string>> &move, GameState
   }
 
   moves.push_back(rollback);
-  gs.gameScore += score;
+  gs.piecesScoring += score;
 
   t = (std::clock() - t);
   elapsed_sec["executeMove"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
@@ -657,9 +658,11 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
     if(isWhiteTurn()) {
       new_gs.touch(0);
       new_gs.touch(1);
+      new_gs.doCastling(0);
     } else {
       new_gs.touch(2);
       new_gs.touch(3);
+      new_gs.doCastling(1);
     }
   } else if(piece[1] == 'p' && int(std::abs(current_pos.second - new_pos.second)) == 2) {
     // Action: Two moves
@@ -703,12 +706,9 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
 
   if(drawConditions(new_gs)) {
     new_gs.gameStatus = "draw";
-    new_gs.gameScore = 0.0;
   }
   if(nextMoves.size() == 0 && isOnCheck()) {
     new_gs.gameStatus = "checkmate";
-    if(isWhiteTurn()) new_gs.gameScore = -1000;
-    else new_gs.gameScore = 1000;
   }
 
   addState(new_gs);
@@ -783,8 +783,15 @@ std::vector<std::pair<pii, pii>> Game::getAllMoves() {
 }
 
 double Game::getScore() const {
+  const GameState &gs = getState();
 
-  return getState().gameScore;
+  if(gs.gameStatus == "draw") return 0.0;
+  else if(gs.gameStatus == "checkmate") {
+    if(isWhiteTurn()) return -1000.0;
+    else return 1000.0;
+  }
+
+  return gs.piecesScoring + gs.scoringHeuristic();
 }
 
 // Performance
