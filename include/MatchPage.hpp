@@ -199,11 +199,11 @@ private:
   }
 
   void drawPieces(sf::RenderWindow &window) {
-    const std::vector<std::vector<std::string>> &setup = game.getBoard(move_counter);
+    const std::vector<std::vector<int>> &setup = game.getBoard(move_counter);
     for(int i=0;i<8;i++) {
       for(int j=0;j<8;j++) {
-        if(setup[i][j] == "") continue;
-        drawPiece(window, setup[i][j], PADDING + i * SQUARE_SIZE, PADDING + j * SQUARE_SIZE);
+        if(setup[i][j] == EMPTY) continue;
+        drawPiece(window, getPieceName(setup[i][j]), PADDING + i * SQUARE_SIZE, PADDING + j * SQUARE_SIZE);
       }
     }
   }

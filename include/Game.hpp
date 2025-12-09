@@ -6,13 +6,14 @@
 #include <vector>
 #include <assert.h>
 #include <math.h>
+#include <Define.hpp>
 
 typedef std::pair<int, int> pii;
 
 struct GameState {
   pii enPassant;
   int castlingPreserved;
-  std::string gameStatus;
+  int gameStatus;
   double piecesScoring;
   int moves_white;
   int moves_black;
@@ -55,10 +56,10 @@ struct GameState {
 class Game {
 private:
   std::vector<GameState> gameState;
-  std::vector<std::vector<std::string>> board;
+  std::vector<std::vector<int>> board;
   std::vector<std::pair<pii, pii>> nextMoves;
   std::map<std::string, int> hashedBoardCounter;
-  std::vector<std::vector<std::pair<pii, std::string>>> moves;
+  std::vector<std::vector<std::pair<pii, int>>> moves;
 
   // Performance
   std::map<std::string, double> elapsed_sec;
@@ -79,9 +80,9 @@ private:
   void knightMaskOccupancy();
   void kingMaskOccupancy();
   void pawnMaskOccupancy();
-  void setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position);
+  void setMaskPosition(int prev_piece, int new_piece, pii position);
 
-  void setBoard(int x, int y, std::string piece);
+  void setBoard(int x, int y, int piece);
 
   GameState getState() const;
   void addState(GameState gs);
@@ -89,19 +90,19 @@ private:
   void buildBoard();
   std::string getBoardHash();
   int storeHashedBoard();
-  std::string getPositionInfo(int x, int y) const;
+  int getPositionInfo(int x, int y) const;
   bool isValidMove(pii curr_pos, pii new_pos);
   bool isOnCheck();
-  void genNextMoves(const GameState gs);
+  void genNextMoves(const GameState &gs);
   pii getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
-  void executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs);
-  double evaluatePiece(std::string piece);
+  void executeMove(std::vector<std::pair<pii, int>> &move, GameState &gs);
+  double evaluatePiece(int piece) const;
 
 public:
   Game();
 
-  std::vector<std::vector<std::string>> getBoard(int move_id=-1);
+  std::vector<std::vector<int>> getBoard(int move_id=-1);
   void undoAction();
   void doAction(pii current_pos, pii new_pos, int choose=-1);
   std::vector<std::pair<pii, int>> getSpecialCells(pii cell);

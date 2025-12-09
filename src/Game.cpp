@@ -3,15 +3,9 @@
 #include <iomanip>
 #include <Bitboard.hpp>
 
-std::map<std::string, int> piece_pos = {
-  {"wr", 0}, {"wn", 1}, {"wb", 2}, {"wq", 4}, {"wp", 5},
-  {"br", 6}, {"bn", 7}, {"bb", 8}, {"bq", 10}, {"bp", 11},
-  {"", -1}, {"wk", -1}, {"bk", -1}
-};
-
 Game::Game() {
   GameState gs;
-  gs.gameStatus = "alive";
+  gs.gameStatus = ALIVE;
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
   gs.piecesScoring = 0.0;
@@ -39,9 +33,9 @@ Game::Game() {
 
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
-      int id = piece_pos[board[i][j]];
-      if(id == -1) continue;
-      if(id == 2 || id == 8) {
+      int id = board[i][j];
+      if(id == EMPTY || id == WK || id == BK) continue;
+      if(id == WB || id == BB) {
         id += (i%2 + j%2)%2;
       }
       gs.pieces_counter[id]++;
@@ -55,7 +49,7 @@ Game::Game() {
 void Game::boardMaskOccupancy() {
   for(int x=0;x<8;x++) {
     for(int y=0;y<8;y++) {
-      if(board[x][y] != "") {
+      if(board[x][y] != EMPTY) {
         int b = bitboard.grid2bit(x, y);
         board_mask |= bitboard.bit2mask(b);
       }
@@ -65,11 +59,9 @@ void Game::boardMaskOccupancy() {
 
 void Game::bishopMaskOccupancy() {
   for(int side=0;side<2;side++) {
-    char c = (side == 0 ? 'w' : 'b');
-
     for(int x=0;x<8;x++) {
       for(int y=0;y<8;y++) {
-        if(board[x][y][0] == c && (board[x][y][1] == 'b' || board[x][y][1] == 'q')) {
+        if(getColor(board[x][y]) == side && (isBishop(board[x][y]) || isQueen(board[x][y]))) {
           int b = bitboard.grid2bit(x, y);
           bishop_mask[side] |= bitboard.bit2mask(b);
         }
@@ -80,11 +72,9 @@ void Game::bishopMaskOccupancy() {
 
 void Game::rookMaskOccupancy() {
   for(int side=0;side<2;side++) {
-    char c = (side == 0 ? 'w' : 'b');
-
     for(int x=0;x<8;x++) {
       for(int y=0;y<8;y++) {
-        if(board[x][y][0] == c && (board[x][y][1] == 'r' || board[x][y][1] == 'q')) {
+        if(getColor(board[x][y]) == side && (isRook(board[x][y]) || isQueen(board[x][y]))) {
           int b = bitboard.grid2bit(x, y);
           rook_mask[side] |= bitboard.bit2mask(b);
         }
@@ -95,11 +85,9 @@ void Game::rookMaskOccupancy() {
 
 void Game::knightMaskOccupancy() {
   for(int side=0;side<2;side++) {
-    char c = (side == 0 ? 'w' : 'b');
-
     for(int x=0;x<8;x++) {
       for(int y=0;y<8;y++) {
-        if(board[x][y][0] == c && board[x][y][1] == 'n') {
+        if(getColor(board[x][y]) == side && isKnight(board[x][y])) {
           int b = bitboard.grid2bit(x, y);
           knight_mask[side] |= bitboard.bit2mask(b);
         }
@@ -110,11 +98,9 @@ void Game::knightMaskOccupancy() {
 
 void Game::kingMaskOccupancy() {
   for(int side=0;side<2;side++) {
-    char c = (side == 0 ? 'w' : 'b');
-
     for(int x=0;x<8;x++) {
       for(int y=0;y<8;y++) {
-        if(board[x][y][0] == c && board[x][y][1] == 'k') {
+        if(getColor(board[x][y]) == side && isKing(board[x][y])) {
           int b = bitboard.grid2bit(x, y);
           king_mask[side] |= bitboard.bit2mask(b);
         }
@@ -125,11 +111,9 @@ void Game::kingMaskOccupancy() {
 
 void Game::pawnMaskOccupancy() {
   for(int side=0;side<2;side++) {
-    char c = (side == 0 ? 'w' : 'b');
-
     for(int x=0;x<8;x++) {
       for(int y=0;y<8;y++) {
-        if(board[x][y][0] == c && board[x][y][1] == 'p') {
+        if(getColor(board[x][y]) == side && isPawn(board[x][y])) {
           int b = bitboard.grid2bit(x, y);
           pawn_mask[side] |= bitboard.bit2mask(b);
         }
@@ -138,58 +122,41 @@ void Game::pawnMaskOccupancy() {
   }
 }
 
-void Game::setMaskPosition(const std::string &prev_piece, const std::string &new_piece, pii position) {
-  auto piece_alias = [&](const std::string& piece) {
-    if(piece == "") return -1;
-    else if(piece[1] == 'r') return 0;
-    else if(piece[1] == 'n') return 1;
-    else if(piece[1] == 'b') return 2;
-    else if(piece[1] == 'q') return 3;
-    else if(piece[1] == 'k') return 4;
-    else return 5;
-  };
-
-  auto piece_color = [&](const std::string& piece) {
-    if(piece == "") return -1;
-    else if(piece[0] == 'w') return 0;
-    else return 1;
-  };
-
+void Game::setMaskPosition(int prev_piece, int new_piece, pii position) {
   uint64_t mask = bitboard.bit2mask(bitboard.grid2bit(position.first, position.second));
   // board
-  if(piece_alias(prev_piece) != -1) board_mask &= ~mask;
-  if(piece_alias(new_piece) != -1) board_mask |= mask;
+  if(prev_piece != EMPTY) board_mask &= ~mask;
+  if(new_piece != EMPTY) board_mask |= mask;
 
   // bishop mask
-  if(piece_alias(prev_piece) == 2 || piece_alias(prev_piece) == 3) bishop_mask[piece_color(prev_piece)] &= ~mask;
-  if(piece_alias(new_piece) == 2 || piece_alias(new_piece) == 3) bishop_mask[piece_color(new_piece)] |= mask;
+  if(isBishop(prev_piece) || isQueen(prev_piece)) bishop_mask[getColor(prev_piece)] &= ~mask;
+  if(isBishop(new_piece) || isQueen(new_piece)) bishop_mask[getColor(new_piece)] |= mask;
 
   // rook mask
-  if(piece_alias(prev_piece) == 0 || piece_alias(prev_piece) == 3) rook_mask[piece_color(prev_piece)] &= ~mask;
-  if(piece_alias(new_piece) == 0 || piece_alias(new_piece) == 3) rook_mask[piece_color(new_piece)] |= mask;
+  if(isRook(prev_piece) || isQueen(prev_piece)) rook_mask[getColor(prev_piece)] &= ~mask;
+  if(isRook(new_piece) || isQueen(new_piece)) rook_mask[getColor(new_piece)] |= mask;
 
   // knight mask
-  if(piece_alias(prev_piece) == 1) knight_mask[piece_color(prev_piece)] &= ~mask;
-  if(piece_alias(new_piece) == 1) knight_mask[piece_color(new_piece)] |= mask;
+  if(isKnight(prev_piece)) knight_mask[getColor(prev_piece)] &= ~mask;
+  if(isKnight(new_piece)) knight_mask[getColor(new_piece)] |= mask;
 
   // king mask
-  if(piece_alias(prev_piece) == 4) king_mask[piece_color(prev_piece)] &= ~mask;
-  if(piece_alias(new_piece) == 4) king_mask[piece_color(new_piece)] |= mask;
+  if(isKing(prev_piece)) king_mask[getColor(prev_piece)] &= ~mask;
+  if(isKing(new_piece)) king_mask[getColor(new_piece)] |= mask;
 
   // pawn mask
-  if(piece_alias(prev_piece) == 5) pawn_mask[piece_color(prev_piece)] &= ~mask;
-  if(piece_alias(new_piece) == 5) pawn_mask[piece_color(new_piece)] |= mask;
+  if(isPawn(prev_piece)) pawn_mask[getColor(prev_piece)] &= ~mask;
+  if(isPawn(new_piece)) pawn_mask[getColor(new_piece)] |= mask;
 }
 
-void Game::setBoard(int x, int y, std::string piece) {
-  std::string prev_piece = board[x][y];
+void Game::setBoard(int x, int y, int piece) {
+  int prev_piece = board[x][y];
   board[x][y] = piece;
   setMaskPosition(prev_piece, piece, std::make_pair(x, y));
-  if(piece.size() <= 1 || piece[1] != 'k') return;
+  if(!isKing(piece)) return;
 
   int b = bitboard.grid2bit(x, y);
-  bool side = piece[0] == 'b';
-  king_pos[side] = b;
+  king_pos[getColor(piece)] = b;
 }
 
 GameState Game::getState() const {
@@ -204,10 +171,10 @@ bool Game::isWhiteTurn() const {
   return ((int)moves.size() % 2) == 0;
 }
 
-std::vector<std::vector<std::string>> Game::getBoard(int move_id) {
+std::vector<std::vector<int>> Game::getBoard(int move_id) {
   if(move_id == -1) move_id = moves.size();
 
-  std::vector<std::vector<std::string>> tmp = board;
+  std::vector<std::vector<int>> tmp = board;
 
   for(int i=(int)moves.size() - 1; i>=move_id; i--) {
     for(auto &c: moves[i]) {
@@ -222,8 +189,8 @@ std::string Game::getBoardHash() {
   std::string hsh = "";
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
-      if(board[i][j] == "") hsh += "xx";
-      else hsh += board[i][j];
+      if(board[i][j] == EMPTY) hsh += "/x";
+      else hsh += "/" + std::to_string(board[i][j]);
     }
   }
 
@@ -265,48 +232,48 @@ pii Game::getKingPos(bool white) {
 }
 
 bool Game::isDraw() const {
-  return getState().gameStatus == "draw";
+  return getState().gameStatus == DRAW;
 }
 
 bool Game::isCheckMate() const {
-  return getState().gameStatus == "checkmate";
+  return getState().gameStatus == CHECKMATE;
 }
 
 void Game::buildBoard() {
   for(int i=0;i<8;i++) {
-    std::vector<std::string> row;
+    std::vector<int> row;
     for(int j=0;j<8;j++) {
-      row.push_back("");
+      row.push_back(EMPTY);
     }
     board.push_back(row);
   }
 
-  setBoard(0, 0, "br");
-  setBoard(1, 0, "bn");
-  setBoard(2, 0, "bb");
-  setBoard(3, 0, "bq");
-  setBoard(4, 0, "bk");
-  setBoard(5, 0, "bb");
-  setBoard(6, 0, "bn");
-  setBoard(7, 0, "br");
-  setBoard(0, 7, "wr");
-  setBoard(1, 7, "wn");
-  setBoard(2, 7, "wb");
-  setBoard(3, 7, "wq");
-  setBoard(4, 7, "wk");
-  setBoard(5, 7, "wb");
-  setBoard(6, 7, "wn");
-  setBoard(7, 7, "wr");
+  setBoard(0, 0, BR);
+  setBoard(1, 0, BN);
+  setBoard(2, 0, BB);
+  setBoard(3, 0, BQ);
+  setBoard(4, 0, BK);
+  setBoard(5, 0, BB);
+  setBoard(6, 0, BN);
+  setBoard(7, 0, BR);
+  setBoard(0, 7, WR);
+  setBoard(1, 7, WN);
+  setBoard(2, 7, WB);
+  setBoard(3, 7, WQ);
+  setBoard(4, 7, WK);
+  setBoard(5, 7, WB);
+  setBoard(6, 7, WN);
+  setBoard(7, 7, WR);
 
   for(int i=0;i<8;i++) {
-    setBoard(i, 1, "bp");
-    setBoard(i, 6, "wp");
+    setBoard(i, 1, BP);
+    setBoard(i, 6, WP);
   }
   storeHashedBoard();
 }
 
-std::string Game::getPositionInfo(int x, int y) const {
-  if(x < 0 || x > 7 || y < 0 || y > 7) return "out";
+int Game::getPositionInfo(int x, int y) const {
+  if(x < 0 || x > 7 || y < 0 || y > 7) return OUT;
   return board[x][y];
 }
 
@@ -323,9 +290,9 @@ bool Game::isOnCheck() {
 
   // Checked by a Pawn
   if(isWhiteTurn()) {
-    if(getPositionInfo(king_x-1, king_y-1) == "bp" || getPositionInfo(king_x+1, king_y-1) == "bp") ret = true;
+    if(getPositionInfo(king_x-1, king_y-1) == BP || getPositionInfo(king_x+1, king_y-1) == BP) ret = true;
   } else {
-    if(getPositionInfo(king_x-1, king_y+1) == "wp" || getPositionInfo(king_x+1, king_y+1) == "wp") ret = true;
+    if(getPositionInfo(king_x-1, king_y+1) == WP || getPositionInfo(king_x+1, king_y+1) == WP) ret = true;
   }
 
   // Checked by a King
@@ -356,16 +323,16 @@ bool Game::isOnCheck() {
 }
 
 bool Game::isValidMove(pii curr_pos, pii new_pos) {
-  std::string current_pos_before = getPositionInfo(curr_pos.first, curr_pos.second);
-  std::string new_pos_before = getPositionInfo(new_pos.first, new_pos.second);
+  int current_pos_before = getPositionInfo(curr_pos.first, curr_pos.second);
+  int new_pos_before = getPositionInfo(new_pos.first, new_pos.second);
 
-  if(new_pos_before == "out") return false;
-  if(isWhiteTurn() && (new_pos_before != "" && new_pos_before[0] == 'w')) return false;
-  if(!isWhiteTurn() && (new_pos_before != "" && new_pos_before[0] == 'b')) return false;
-  if(new_pos_before != "" && new_pos_before[1] == 'k') return false;
+  if(new_pos_before == OUT) return false;
+  if(isWhiteTurn() && isWhite(new_pos_before)) return false;
+  if(!isWhiteTurn() && isBlack(new_pos_before)) return false;
+  if(isKing(new_pos_before)) return false;
 
   // Move the piece
-  setBoard(curr_pos.first, curr_pos.second, "");
+  setBoard(curr_pos.first, curr_pos.second, EMPTY);
   setBoard(new_pos.first, new_pos.second, current_pos_before);
 
   bool isValid = !isOnCheck();
@@ -376,25 +343,25 @@ bool Game::isValidMove(pii curr_pos, pii new_pos) {
   return isValid;
 }
 
-void Game::genNextMoves(const GameState gs) {
+void Game::genNextMoves(const GameState &gs) {
   std::clock_t t = std::clock();
   nextMoves.clear();
 
-  std::vector<std::pair<std::string, pii>> setup;
+  std::vector<std::pair<int, pii>> setup;
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
-      if(board[i][j] == "") continue;
+      if(board[i][j] == EMPTY) continue;
       setup.push_back({board[i][j], {i, j}});
     }
   }
 
   for(int i=0;i<setup.size();i++) {
-    if(isWhiteTurn() && setup[i].first[0] == 'b') continue;
-    if(!isWhiteTurn() && setup[i].first[0] == 'w') continue;
+    if(isWhiteTurn() && isBlack(setup[i].first)) continue;
+    if(!isWhiteTurn() && isWhite(setup[i].first)) continue;
 
     pii current_pos = setup[i].second;
 
-    if(setup[i].first[1] == 'n') {
+    if(isKnight(setup[i].first)) {
       // Knight moves
       int dl[] = {-2, -2, -1, 1, 2, 2, -1, 1};
       int dc[] = {-1, 1, 2, 2, -1, 1, -2, -2};
@@ -408,7 +375,7 @@ void Game::genNextMoves(const GameState gs) {
         }
       }
     }
-    if(setup[i].first[1] == 'k') {
+    if(isKing(setup[i].first)) {
       // King moves
       int dl1[] = {-1, -1, -1, 0, 0, 1, 1, 1};
       int dc1[] = {-1, 0, 1, -1, 1, -1, 0, 1};
@@ -422,38 +389,38 @@ void Game::genNextMoves(const GameState gs) {
         }
       }
       // White Castling: left side
-      if(isWhiteTurn() && gs.isCastlingPreserved(0) && getPositionInfo(0, 7) == "wr"
-        && getPositionInfo(1, 7) == "" && getPositionInfo(2, 7) == "" && getPositionInfo(3, 7) == "" && !isOnCheck()) {
+      if(isWhiteTurn() && gs.isCastlingPreserved(0) && getPositionInfo(0, 7) == WR
+        && getPositionInfo(1, 7) == EMPTY && getPositionInfo(2, 7) == EMPTY && getPositionInfo(3, 7) == EMPTY && !isOnCheck()) {
 
         if(isValidMove({4, 7}, {3, 7}) && isValidMove({4, 7}, {2, 7})) {
           nextMoves.push_back({{4, 7}, {2, 7}});
         } 
       }
       // Black Castling: left side
-      if(!isWhiteTurn() && gs.isCastlingPreserved(2) && getPositionInfo(0, 0) == "br"
-        && getPositionInfo(1, 0) == "" && getPositionInfo(2, 0) == "" && getPositionInfo(3, 0) == "" &&  !isOnCheck()) {
+      if(!isWhiteTurn() && gs.isCastlingPreserved(2) && getPositionInfo(0, 0) == BR
+        && getPositionInfo(1, 0) == EMPTY && getPositionInfo(2, 0) == EMPTY && getPositionInfo(3, 0) == EMPTY &&  !isOnCheck()) {
 
         if(isValidMove({4, 0}, {3, 0}) && isValidMove({4, 0}, {2, 0})) {
           nextMoves.push_back({{4, 0}, {2, 0}});
         } 
       }
-      if(isWhiteTurn() && gs.isCastlingPreserved(1) && getPositionInfo(7, 7) == "wr"
-        && getPositionInfo(5, 7) == "" && getPositionInfo(6, 7) == "" && !isOnCheck()) {
+      if(isWhiteTurn() && gs.isCastlingPreserved(1) && getPositionInfo(7, 7) == WR
+        && getPositionInfo(5, 7) == EMPTY && getPositionInfo(6, 7) == EMPTY && !isOnCheck()) {
 
         if(isValidMove({4, 7}, {5, 7}) && isValidMove({4, 7}, {6, 7})) {
           nextMoves.push_back({{4, 7}, {6, 7}});
         }
       }
       // Black Castling: right side
-      if(!isWhiteTurn() && gs.isCastlingPreserved(3) && getPositionInfo(7, 0) == "br"
-        && getPositionInfo(5, 0) == "" && getPositionInfo(6, 0) == "" && !isOnCheck()) {
+      if(!isWhiteTurn() && gs.isCastlingPreserved(3) && getPositionInfo(7, 0) == BR
+        && getPositionInfo(5, 0) == EMPTY && getPositionInfo(6, 0) == EMPTY && !isOnCheck()) {
 
         if(isValidMove({4, 0}, {5, 0}) && isValidMove({4, 0}, {6, 0})) {
           nextMoves.push_back({{4, 0}, {6, 0}});
         }
       }
     }
-    if(setup[i].first[1] == 'r' || setup[i].first[1] == 'q') {
+    if(isRook(setup[i].first) || isQueen(setup[i].first)) {
       // Rook & Queen moves
       int dl2[] = {-1, 0, 1, 0};
       int dc2[] = {0, -1, 0, 1};
@@ -467,11 +434,11 @@ void Game::genNextMoves(const GameState gs) {
             nextMoves.push_back({current_pos, new_pos});
           }
 
-          if(getPositionInfo(new_pos.first, new_pos.second) != "") break;
+          if(getPositionInfo(new_pos.first, new_pos.second) != EMPTY) break;
         }
       }
     }
-    if(setup[i].first[1] == 'b' || setup[i].first[1] == 'q') {
+    if(isBishop(setup[i].first) || isQueen(setup[i].first)) {
       // Bishop & Queen moves
       int dl3[] = {-1, -1, 1, 1};
       int dc3[] = {-1, 1, 1, -1};
@@ -485,25 +452,25 @@ void Game::genNextMoves(const GameState gs) {
             nextMoves.push_back({current_pos, new_pos});
           }
 
-          if(getPositionInfo(new_pos.first, new_pos.second) != "") break;
+          if(getPositionInfo(new_pos.first, new_pos.second) != EMPTY) break;
         }
       }
     }
-    if(setup[i].first[1] == 'p') {
+    if(isPawn(setup[i].first)) {
       int front_direction = (isWhiteTurn() ? -1 : 1);
       int initial_row = (7 + front_direction) % 7;
 
       // Left taking
       if(isValidMove(current_pos, {current_pos.first - 1, current_pos.second + front_direction})) {
-        std::string info = getPositionInfo(current_pos.first - 1, current_pos.second + front_direction);
-        if(info != "" && info[0] != setup[i].first[0]) {
+        int info = getPositionInfo(current_pos.first - 1, current_pos.second + front_direction);
+        if(info != EMPTY && getColor(info) != getColor(setup[i].first)) {
           nextMoves.push_back({current_pos, {current_pos.first - 1, current_pos.second + front_direction}});
         }
       }
       // Right taking
       if(isValidMove(current_pos, {current_pos.first + 1, current_pos.second + front_direction})) {
-        std::string info = getPositionInfo(current_pos.first + 1, current_pos.second + front_direction);
-        if(info != "" && info[0] != setup[i].first[0]) {
+        int info = getPositionInfo(current_pos.first + 1, current_pos.second + front_direction);
+        if(info != EMPTY && getColor(info) != getColor(setup[i].first)) {
           nextMoves.push_back({current_pos, {current_pos.first + 1, current_pos.second + front_direction}});
         }
       }
@@ -511,11 +478,11 @@ void Game::genNextMoves(const GameState gs) {
       if(gs.enPassant == std::make_pair(current_pos.first - 1, current_pos.second)
         || gs.enPassant == std::make_pair(current_pos.first + 1, current_pos.second)) {
 
-        std::string attacker = board[current_pos.first][current_pos.second];
-        std::string deffensor = board[gs.enPassant.first][gs.enPassant.second];
+        int attacker = board[current_pos.first][current_pos.second];
+        int deffensor = board[gs.enPassant.first][gs.enPassant.second];
 
-        setBoard(current_pos.first, current_pos.second, "");
-        setBoard(gs.enPassant.first, gs.enPassant.second, "");
+        setBoard(current_pos.first, current_pos.second, EMPTY);
+        setBoard(gs.enPassant.first, gs.enPassant.second, EMPTY);
         setBoard(gs.enPassant.first, gs.enPassant.second + front_direction, attacker);
 
         if(!isOnCheck()) {
@@ -524,12 +491,12 @@ void Game::genNextMoves(const GameState gs) {
 
         setBoard(current_pos.first, current_pos.second, attacker);
         setBoard(gs.enPassant.first, gs.enPassant.second, deffensor);
-        setBoard(gs.enPassant.first, gs.enPassant.second + front_direction, "");
+        setBoard(gs.enPassant.first, gs.enPassant.second + front_direction, EMPTY);
       }
       // Two moves
       if(current_pos.second == initial_row) {
-        if(board[current_pos.first][current_pos.second + front_direction] == ""
-          && board[current_pos.first][current_pos.second + 2 * front_direction] == "") {
+        if(board[current_pos.first][current_pos.second + front_direction] == EMPTY
+          && board[current_pos.first][current_pos.second + 2 * front_direction] == EMPTY) {
 
           if(isValidMove(current_pos, {current_pos.first, current_pos.second + 2 * front_direction})) {
             nextMoves.push_back({current_pos, {current_pos.first, current_pos.second + 2 * front_direction}});
@@ -537,7 +504,7 @@ void Game::genNextMoves(const GameState gs) {
         }
       }
       // Single move
-      if(getPositionInfo(current_pos.first, current_pos.second + front_direction) == "") {
+      if(getPositionInfo(current_pos.first, current_pos.second + front_direction) == EMPTY) {
         if(isValidMove(current_pos, {current_pos.first, current_pos.second + front_direction})) {
           nextMoves.push_back({current_pos, {current_pos.first, current_pos.second + front_direction}});
         }
@@ -549,44 +516,44 @@ void Game::genNextMoves(const GameState gs) {
   called_counter["genNextMoves"]++;
 }
 
-double Game::evaluatePiece(std::string piece) {
-  if(piece == "") return 0.0;
-  int mult = (piece[0] == 'w' ? 1.0 : -1.0);
+double Game::evaluatePiece(int piece) const {
+  if(piece == EMPTY) return 0.0;
+  int mult = (isWhite(piece) ? 1.0 : -1.0);
 
   double value = 0.0;
 
-  if(piece[1] == 'r') value = 5.0;
-  else if(piece[1] == 'n') value = 3.0;
-  else if(piece[1] == 'b') value = 3.0;
-  else if(piece[1] == 'q') value = 9.0;
-  else if(piece[1] == 'p') value = 1.0;
+  if(isRook(piece)) value = 5.0;
+  else if(isKnight(piece)) value = 3.0;
+  else if(isBishop(piece)) value = 3.0;
+  else if(isQueen(piece)) value = 9.0;
+  else if(isPawn(piece)) value = 1.0;
 
   return mult * value;
 }
 
-void Game::executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs) {
+void Game::executeMove(std::vector<std::pair<pii, int>> &move, GameState &gs) {
   std::clock_t t = std::clock();
-  std::vector<std::pair<pii, std::string>> rollback;
+  std::vector<std::pair<pii, int>> rollback;
   double score = 0.0;
 
   for(auto &m: move) {
-    std::string curr_piece = board[m.first.first][m.first.second];
+    int curr_piece = board[m.first.first][m.first.second];
     rollback.push_back({m.first, curr_piece});
     setBoard(m.first.first, m.first.second, m.second);
 
     score -= evaluatePiece(curr_piece);
     score += evaluatePiece(m.second);
 
-    std::vector<std::pair<std::string, int>> tmp;
+    std::vector<std::pair<int, int>> tmp;
     tmp.push_back({curr_piece, -1});
     tmp.push_back({m.second, 1});
 
     for(auto &t: tmp) {
-      int id = piece_pos[t.first];
-      if(id == 2 || id == 8) {
+      int id = t.first;
+      if(id == WB || id == BB) {
         id += (m.first.first%2 + m.first.second%2)%2;
       }
-      if(id == -1) continue;
+      if(id == EMPTY || id == BK || id == WK) continue;
 
       gs.pieces_counter[id] += t.second;
     }
@@ -611,6 +578,7 @@ void Game::undoAction() {
   }
   moves.pop_back();
 
+  // TODO: Remove genNextMoves here
   genNextMoves(gameState.back());
 }
 
@@ -621,33 +589,33 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   GameState new_gs = curr_gs;
   new_gs.enPassant = {-1, -1};
 
-  std::string piece = board[current_pos.first][current_pos.second];
-  std::vector<std::pair<pii, std::string>> current_move;
+  int piece = board[current_pos.first][current_pos.second];
+  std::vector<std::pair<pii, int>> current_move;
 
-  if(piece[1] == 'p' && board[new_pos.first][new_pos.second] == "" && current_pos.first != new_pos.first) {
+  if(isPawn(piece) && board[new_pos.first][new_pos.second] == EMPTY && current_pos.first != new_pos.first) {
     // Action: En passant
-    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{current_pos.first, current_pos.second}, EMPTY});
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
-    current_move.push_back({{curr_gs.enPassant.first, curr_gs.enPassant.second}, ""});
+    current_move.push_back({{curr_gs.enPassant.first, curr_gs.enPassant.second}, EMPTY});
 
-  } else if(piece[1] == 'k' && int(std::abs(current_pos.first - new_pos.first)) == 2) {
+  } else if(isKing(piece) && int(std::abs(current_pos.first - new_pos.first)) == 2) {
     // Action: Castling
     int row = current_pos.second;
     if(new_pos.first == 2) {
-      std::string rook = board[0][row];
+      int rook = board[0][row];
 
-      current_move.push_back({{0, row}, ""});
+      current_move.push_back({{0, row}, EMPTY});
       current_move.push_back({{2, row}, piece});
       current_move.push_back({{3, row}, rook});
-      current_move.push_back({{4, row}, ""});
+      current_move.push_back({{4, row}, EMPTY});
 
     } else {
-      std::string rook = board[7][row];
+      int rook = board[7][row];
 
-      current_move.push_back({{7, row}, ""});
+      current_move.push_back({{7, row}, EMPTY});
       current_move.push_back({{6, row}, piece});
       current_move.push_back({{5, row}, rook});
-      current_move.push_back({{4, row}, ""});
+      current_move.push_back({{4, row}, EMPTY});
 
     }
 
@@ -660,40 +628,41 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
       new_gs.touch(3);
       new_gs.doCastling(1);
     }
-  } else if(piece[1] == 'p' && int(std::abs(current_pos.second - new_pos.second)) == 2) {
+  } else if(isPawn(piece) && int(std::abs(current_pos.second - new_pos.second)) == 2) {
     // Action: Two moves
     new_gs.enPassant = new_pos;
 
-    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{current_pos.first, current_pos.second}, EMPTY});
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
 
-  } else if(piece[1] == 'p' && (new_pos.second == 0 || new_pos.second == 7)) {
+  } else if(isPawn(piece) && (new_pos.second == 0 || new_pos.second == 7)) {
     // Action: Promotion
     assert(choose != -1);
-    std::string promotedPiece = (isWhiteTurn() ? "w" : "b");
-    if(choose == 0) promotedPiece += "q";
-    else if(choose == 1) promotedPiece += "r";
-    else if(choose == 2) promotedPiece += "n";
-    else if(choose == 3) promotedPiece += "b";
+    int promotedPiece = -1;
+    if(choose == 0) promotedPiece = (isWhiteTurn() ? WQ : BQ);
+    else if(choose == 1) promotedPiece = (isWhiteTurn() ? WR : BR);
+    else if(choose == 2) promotedPiece = (isWhiteTurn() ? WN : BN);
+    else if(choose == 3) promotedPiece = (isWhiteTurn() ? WB : BB);
+    else assert(false);
 
-    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{current_pos.first, current_pos.second}, EMPTY});
     current_move.push_back({{new_pos.first, new_pos.second}, promotedPiece});
 
   } else {
     // Any other move
-    current_move.push_back({{current_pos.first, current_pos.second}, ""});
+    current_move.push_back({{current_pos.first, current_pos.second}, EMPTY});
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
 
   }
   executeMove(current_move, new_gs);
   new_gs.repetition = storeHashedBoard() == 3;
 
-  if(piece == "wk") new_gs.touch(0), new_gs.touch(1);
-  if(piece == "bk") new_gs.touch(2), new_gs.touch(3);
-  if(piece == "wr" && current_pos.first == 0) new_gs.touch(0);
-  if(piece == "wr" && current_pos.first == 7) new_gs.touch(1);
-  if(piece == "br" && current_pos.first == 0) new_gs.touch(2);
-  if(piece == "br" && current_pos.first == 7) new_gs.touch(3);
+  if(piece == WK) new_gs.touch(0), new_gs.touch(1);
+  if(piece == BK) new_gs.touch(2), new_gs.touch(3);
+  if(piece == WR && current_pos.first == 0) new_gs.touch(0);
+  if(piece == WR && current_pos.first == 7) new_gs.touch(1);
+  if(piece == BR && current_pos.first == 0) new_gs.touch(2);
+  if(piece == BR && current_pos.first == 7) new_gs.touch(3);
 
   genNextMoves(new_gs);
 
@@ -701,10 +670,10 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   else new_gs.moves_black = nextMoves.size();
 
   if(drawConditions(new_gs)) {
-    new_gs.gameStatus = "draw";
+    new_gs.gameStatus = DRAW;
   }
   if(nextMoves.size() == 0 && isOnCheck()) {
-    new_gs.gameStatus = "checkmate";
+    new_gs.gameStatus = CHECKMATE;
   }
 
   addState(new_gs);
@@ -737,7 +706,7 @@ bool Game::isPawnPromotion(pii curr_pos, pii new_pos) {
 
   int promotion_y = (isWhiteTurn() ? 0 : 7);
 
-  return (board[curr_pos.first][curr_pos.second][1] == 'p' && new_pos.second == promotion_y);
+  return (isPawn(board[curr_pos.first][curr_pos.second]) && new_pos.second == promotion_y);
 }
 
 bool Game::drawConditions(const GameState &gs) const {
@@ -773,16 +742,14 @@ int Game::getTotalMoves() const {
 }
 
 std::vector<std::pair<pii, pii>> Game::getAllMoves() {
-  GameState gs = getState();
-  genNextMoves(gs);
   return nextMoves;
 }
 
 double Game::getScore() const {
   const GameState &gs = getState();
 
-  if(gs.gameStatus == "draw") return 0.0;
-  else if(gs.gameStatus == "checkmate") {
+  if(gs.gameStatus == DRAW) return 0.0;
+  else if(gs.gameStatus == CHECKMATE) {
     if(isWhiteTurn()) return -1000.0;
     else return 1000.0;
   }
@@ -811,19 +778,8 @@ void Game::performance() {
 }
 
 double Game::getCellScore(int x, int y) const {
-  std::string info = getPositionInfo(x, y);
-  assert(info != "out");
+  int info = getPositionInfo(x, y);
+  assert(info != OUT);
 
-  if(info == "") return 0.0;
-  double sc = 0.0;
-  if(info[1] == 'p') sc = 1.0;
-  else if(info[1] == 'r') sc = 5.0;
-  else if(info[1] == 'n') sc = 3.0;
-  else if(info[1] == 'b') sc = 3.0;
-  else if(info[1] == 'q') sc = 9.0;
-  else if(info[1] == 'k') sc = 0.0;
-
-  if(info[0] == 'b') sc *= -1.0;
-
-  return sc;
+  return evaluatePiece(info);
 }
