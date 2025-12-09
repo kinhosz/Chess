@@ -27,6 +27,7 @@ Game::Game() {
   knight_mask.resize(2, 0);
   king_mask.resize(2, 0);
   pawn_mask.resize(2, 0);
+  king_pos[0] = king_pos[1] = -1;
 
   buildBoard();
   boardMaskOccupancy();
@@ -184,6 +185,11 @@ void Game::setBoard(int x, int y, std::string piece) {
   std::string prev_piece = board[x][y];
   board[x][y] = piece;
   setMaskPosition(prev_piece, piece, std::make_pair(x, y));
+  if(piece.size() <= 1 || piece[1] != 'k') return;
+
+  int b = bitboard.grid2bit(x, y);
+  bool side = piece[0] == 'b';
+  king_pos[side] = b;
 }
 
 GameState Game::getState() const {
@@ -253,19 +259,9 @@ std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) {
 }
 
 pii Game::getKingPos(bool white) {
-  std::string king = (white ? "wk" : "bk");
-
-  int king_x = -1, king_y = -1;
-  for(int i=0;i<8 && king_x == -1;i++) {
-    for(int j=0;j<8 && king_x == -1;j++) {
-      if(board[i][j] == king) {
-        king_x = i;
-        king_y = j;
-      }
-    }
-  }
-  assert(king_x != -1);
-  return {king_x, king_y};
+  int b = king_pos[!white];
+  assert(b != -1);
+  return bitboard.bit2grid(b);
 }
 
 bool Game::isDraw() const {
@@ -316,47 +312,47 @@ std::string Game::getPositionInfo(int x, int y) const {
 
 bool Game::isOnCheck() {
   std::clock_t t = std::clock();
-  pii king_pos = getKingPos(isWhiteTurn());
-  int king_x = king_pos.first;
-  int king_y = king_pos.second;
+  pii k_pos = getKingPos(isWhiteTurn());
+  int king_x = k_pos.first;
+  int king_y = k_pos.second;
 
   int black = isWhiteTurn();
   int cell = bitboard.grid2bit(king_x, king_y);
   uint64_t mask;
+  bool ret = false;
 
   // Checked by a Pawn
-  bool old_value = false;
   if(isWhiteTurn()) {
-    if(getPositionInfo(king_x-1, king_y-1) == "bp" || getPositionInfo(king_x+1, king_y-1) == "bp") return true;
+    if(getPositionInfo(king_x-1, king_y-1) == "bp" || getPositionInfo(king_x+1, king_y-1) == "bp") ret = true;
   } else {
-    if(getPositionInfo(king_x-1, king_y+1) == "wp" || getPositionInfo(king_x+1, king_y+1) == "wp") return true;
+    if(getPositionInfo(king_x-1, king_y+1) == "wp" || getPositionInfo(king_x+1, king_y+1) == "wp") ret = true;
   }
 
   // Checked by a King
   mask = bitboard.king(cell);
   uint64_t k_mask = king_mask[black];
-  if((mask&k_mask) != uint64_t(0)) return true;
+  ret |= (mask&k_mask);
 
   // Checked by a Knight
   mask = bitboard.knight(cell);
   uint64_t n_mask = knight_mask[black];
-  if((mask&n_mask) != uint64_t(0)) return true;
+  ret |= (mask&n_mask);
 
   // Checked by a Bishop / Queen
   mask = bitboard.bishop(cell, board_mask);
   uint64_t b_mask = bishop_mask[black];
-  if((mask&b_mask) != uint64_t(0)) return true;
+  ret |= (mask&b_mask);
 
   // Checked by a Rook / Queen
   mask = bitboard.rook(cell, board_mask);
   uint64_t r_mask = rook_mask[black];
-  if((mask&r_mask) != uint64_t(0)) return true;
+  ret |= (mask&r_mask);
   
 
   t = (std::clock() - t);
   elapsed_sec["isOnCheck"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
   called_counter["isOnCheck"]++;
-  return false;
+  return ret;
 }
 
 bool Game::isValidMove(pii curr_pos, pii new_pos) {

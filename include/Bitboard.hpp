@@ -403,6 +403,12 @@ public:
         preprocess();
     }
 
+    std::pair<int,int> bit2grid(int b) const {
+        int y = (7 - b/8);
+        int x = b%8;
+        return std::make_pair(x, y);
+    }
+
     int grid2bit(int x, int y) const {
         // x: A -> H
         // y: 8 -> 1

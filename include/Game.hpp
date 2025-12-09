@@ -71,6 +71,7 @@ private:
   std::vector<uint64_t> knight_mask;
   std::vector<uint64_t> king_mask;
   std::vector<uint64_t> pawn_mask;
+  int king_pos[2];
 
   void boardMaskOccupancy();
   void bishopMaskOccupancy();
