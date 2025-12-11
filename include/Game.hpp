@@ -17,6 +17,7 @@ struct GameState {
   int moves_black;
   bool repetition;
   int castled;
+  bool hasMoves;
 
   std::vector<int> pieces_counter;
 
@@ -55,7 +56,6 @@ class Game {
 private:
   std::vector<GameState> gameState;
   std::vector<std::vector<int>> board;
-  vi4 nextMoves;
   std::map<std::string, int> hashedBoardCounter;
   std::vector<vi3> moves;
 
@@ -92,7 +92,6 @@ private:
   int getPositionInfo(int x, int y) const;
   bool isValidMove(i2 curr_pos, i2 new_pos);
   bool isOnCheck();
-  void genNextMoves();
   i2 getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
   void executeMove(vi3 &move, GameState &gs);
@@ -120,7 +119,7 @@ public:
   bool isPawnPromotion(i2 curr_pos, i2 new_pos);
   bool isAvailable(i2 curr_pos, i2 new_pos);
   int getTotalMoves() const;
-  vi4 getAllMoves();
+  vi4 genNextMoves();
   double getScore() const;
   double getCellScore(int x, int y) const;
 

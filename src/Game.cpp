@@ -14,6 +14,7 @@ Game::Game() {
   gs.repetition = false;
   gs.pieces_counter.resize(12, 0);
   gs.castled = 0;
+  gs.hasMoves = true;
   // BitBoard
   board_mask = uint64_t(0);
   bishop_mask.resize(2, 0);
@@ -43,7 +44,6 @@ Game::Game() {
   }
 
   addState(gs);
-  genNextMoves();
 }
 
 void Game::boardMaskOccupancy() {
@@ -546,10 +546,10 @@ bool Game::isValidMove(i2 curr_pos, i2 new_pos) {
   return isValid;
 }
 
-void Game::genNextMoves() {
+vi4 Game::genNextMoves() {
   std::clock_t t = std::clock();
 
-  nextMoves.clear();
+  vi4 nextMoves;
 
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
@@ -562,6 +562,8 @@ void Game::genNextMoves() {
   t = (std::clock() - t);
   elapsed_sec["genNextMoves"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
   called_counter["genNextMoves"]++;
+
+  return nextMoves;
 }
 
 double Game::evaluatePiece(int piece) const {
@@ -625,9 +627,6 @@ void Game::undoAction() {
     setBoard(m.first.first, m.first.second, m.second);
   }
   moves.pop_back();
-
-  // TODO: Remove genNextMoves here
-  genNextMoves();
 }
 
 void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
@@ -713,16 +712,18 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   if(piece == BR && current_pos.first == 7) new_gs.touch(3);
 
   addState(new_gs);
-  genNextMoves();
+  const vi4 &new_moves = genNextMoves();
   popState();
 
-  if(isWhiteTurn()) new_gs.moves_white = nextMoves.size();
-  else new_gs.moves_black = nextMoves.size();
+  new_gs.hasMoves = new_moves.size() > 0;
+
+  if(isWhiteTurn()) new_gs.moves_white = new_moves.size();
+  else new_gs.moves_black = new_moves.size();
 
   if(drawConditions(new_gs)) {
     new_gs.gameStatus = DRAW;
   }
-  if(nextMoves.size() == 0 && isOnCheck()) {
+  if(!new_gs.hasMoves && isOnCheck()) {
     new_gs.gameStatus = CHECKMATE;
   }
 
@@ -734,29 +735,22 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
 }
 
 bool Game::hasMoveFor(i2 pos) {
-  for(int i=0;i<nextMoves.size();i++) {
-    if(nextMoves[i].first == pos) return true;
-  }
-  return false;
+  return getMovesFor(pos).size() > 0;
 }
 
 bool Game::isAvailable(i2 curr_pos, i2 new_pos) {
-  std::clock_t t = std::clock();
-  for(int i=0;i<nextMoves.size();i++) {
-    if(nextMoves[i].first == curr_pos && nextMoves[i].second == new_pos) return true;
+  vi4 curr_pos_moves = getMovesFor(curr_pos);
+
+  for(auto &m: curr_pos_moves) {
+    if(m.second == new_pos) return true;
   }
-  t = (std::clock() - t);
-  elapsed_sec["isAvailable"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["isAvailable"]++;
+
   return false;
 }
 
 bool Game::isPawnPromotion(i2 curr_pos, i2 new_pos) {
-  if(!isAvailable(curr_pos, new_pos)) return false;
-
   int promotion_y = (isWhiteTurn() ? 0 : 7);
-
-  return (isPawn(board[curr_pos.first][curr_pos.second]) && new_pos.second == promotion_y);
+  return (isPawn(getPositionInfo(curr_pos.first, curr_pos.second)) && new_pos.second == promotion_y);
 }
 
 bool Game::drawConditions(const GameState &gs) const {
@@ -764,7 +758,7 @@ bool Game::drawConditions(const GameState &gs) const {
   if(gs.repetition) return true;
 
   // Stalemate
-  if(nextMoves.size() == 0) return true;
+  if(!gs.hasMoves) return true;
   // Insufficient mating material
   bool isInsufficient = true;
   int total_pieces = 0;
@@ -789,10 +783,6 @@ bool Game::drawConditions(const GameState &gs) const {
 
 int Game::getTotalMoves() const {
   return moves.size();
-}
-
-vi4 Game::getAllMoves() {
-  return nextMoves;
 }
 
 double Game::getScore() const {

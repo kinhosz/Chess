@@ -39,7 +39,7 @@ private:
   std::vector<std::pair<double, int>> sorted_ptr;
 
   void createNextLines(Game& game) {
-    const auto& moves = game.getAllMoves();
+    const auto& moves = game.genNextMoves();
 
     bool isWhiteTurn = game.isWhiteTurn();
 
