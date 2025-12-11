@@ -84,6 +84,7 @@ private:
 
   GameState getState() const;
   void addState(GameState gs);
+  void popState();
 
   void buildBoard();
   std::string getBoardHash();
@@ -91,11 +92,19 @@ private:
   int getPositionInfo(int x, int y) const;
   bool isValidMove(i2 curr_pos, i2 new_pos);
   bool isOnCheck();
-  void genNextMoves(const GameState &gs);
+  void genNextMoves();
   i2 getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
   void executeMove(vi3 &move, GameState &gs);
   double evaluatePiece(int piece) const;
+
+  vi4 getMovesForPawn(i2 current_pos);
+  vi4 getMovesForRook(i2 current_pos);
+  vi4 getMovesForKnight(i2 current_pos);
+  vi4 getMovesForBishop(i2 current_pos);
+  vi4 getMovesForQueen(i2 current_pos);
+  vi4 getMovesForKing(i2 current_pos);
+  vi4 getMovesFor(i2 pos);
 
 public:
   Game();
