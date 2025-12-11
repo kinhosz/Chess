@@ -418,10 +418,12 @@ vi3 Game::getSpecialCells(i2 cell) {
   } else if(isCheckMate()) {
     cells.push_back({getKingPos(isWhiteTurn()), 1});
   } else {
-    for(int i=0;i<nextMoves.size();i++) {
-      if(nextMoves[i].first == cell) cells.push_back({nextMoves[i].second, 0});
+    vi4 movesForCell = getMovesFor(cell);
+
+    for(auto &m_cell: movesForCell) {
+      cells.push_back({m_cell.second, 0});
     }
-    if(hasMoveFor(cell)) cells.push_back({cell, 2});
+    if(movesForCell.size() > 0) cells.push_back({cell, 2});
   }
   return cells;
 }
@@ -744,8 +746,8 @@ bool Game::isAvailable(i2 curr_pos, i2 new_pos) {
     if(nextMoves[i].first == curr_pos && nextMoves[i].second == new_pos) return true;
   }
   t = (std::clock() - t);
-  elapsed_sec["doAction"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["doAction"]++;
+  elapsed_sec["isAvailable"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
+  called_counter["isAvailable"]++;
   return false;
 }
 
