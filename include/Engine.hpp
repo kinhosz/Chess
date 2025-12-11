@@ -8,12 +8,9 @@
 #include <algorithm>
 
 #include <Game.hpp>
+#include <Define.hpp>
 
 std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-
-typedef std::pair<int, int> i2;
-typedef std::pair<i2, i2> i4;
-typedef std::pair<i4, int> i5;
 
 double INF = 1e8;
 

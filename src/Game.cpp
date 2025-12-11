@@ -122,7 +122,7 @@ void Game::pawnMaskOccupancy() {
   }
 }
 
-void Game::setMaskPosition(int prev_piece, int new_piece, pii position) {
+void Game::setMaskPosition(int prev_piece, int new_piece, i2 position) {
   uint64_t mask = bitboard.bit2mask(bitboard.grid2bit(position.first, position.second));
   // board
   if(prev_piece != EMPTY) board_mask &= ~mask;
@@ -203,8 +203,8 @@ int Game::storeHashedBoard() {
   return hashedBoardCounter[hsh];
 }
 
-std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) {
-  std::vector<std::pair<pii, int>> cells;
+vi3 Game::getSpecialCells(i2 cell) {
+  vi3 cells;
   if(moves.size() > 0) {
     for(auto &m: moves.back()) {
       cells.push_back({m.first, 3});
@@ -225,7 +225,7 @@ std::vector<std::pair<pii, int>> Game::getSpecialCells(pii cell) {
   return cells;
 }
 
-pii Game::getKingPos(bool white) {
+i2 Game::getKingPos(bool white) {
   int b = king_pos[!white];
   assert(b != -1);
   return bitboard.bit2grid(b);
@@ -279,7 +279,7 @@ int Game::getPositionInfo(int x, int y) const {
 
 bool Game::isOnCheck() {
   std::clock_t t = std::clock();
-  pii k_pos = getKingPos(isWhiteTurn());
+  i2 k_pos = getKingPos(isWhiteTurn());
   int king_x = k_pos.first;
   int king_y = k_pos.second;
 
@@ -322,7 +322,7 @@ bool Game::isOnCheck() {
   return ret;
 }
 
-bool Game::isValidMove(pii curr_pos, pii new_pos) {
+bool Game::isValidMove(i2 curr_pos, i2 new_pos) {
   int current_pos_before = getPositionInfo(curr_pos.first, curr_pos.second);
   int new_pos_before = getPositionInfo(new_pos.first, new_pos.second);
 
@@ -347,7 +347,7 @@ void Game::genNextMoves(const GameState &gs) {
   std::clock_t t = std::clock();
   nextMoves.clear();
 
-  std::vector<std::pair<int, pii>> setup;
+  std::vector<std::pair<int, i2>> setup;
   for(int i=0;i<8;i++) {
     for(int j=0;j<8;j++) {
       if(board[i][j] == EMPTY) continue;
@@ -359,14 +359,14 @@ void Game::genNextMoves(const GameState &gs) {
     if(isWhiteTurn() && isBlack(setup[i].first)) continue;
     if(!isWhiteTurn() && isWhite(setup[i].first)) continue;
 
-    pii current_pos = setup[i].second;
+    i2 current_pos = setup[i].second;
 
     if(isKnight(setup[i].first)) {
       // Knight moves
       int dl[] = {-2, -2, -1, 1, 2, 2, -1, 1};
       int dc[] = {-1, 1, 2, 2, -1, 1, -2, -2};
       for(int j=0;j<8;j++) {
-        pii new_pos = setup[i].second;
+        i2 new_pos = setup[i].second;
         new_pos.first += dl[j];
         new_pos.second += dc[j];
 
@@ -380,7 +380,7 @@ void Game::genNextMoves(const GameState &gs) {
       int dl1[] = {-1, -1, -1, 0, 0, 1, 1, 1};
       int dc1[] = {-1, 0, 1, -1, 1, -1, 0, 1};
       for(int j=0;j<8;j++) {
-        pii new_pos = setup[i].second;
+        i2 new_pos = setup[i].second;
         new_pos.first += dl1[j];
         new_pos.second += dc1[j];
 
@@ -425,7 +425,7 @@ void Game::genNextMoves(const GameState &gs) {
       int dl2[] = {-1, 0, 1, 0};
       int dc2[] = {0, -1, 0, 1};
       for(int j=0;j<4;j++) {
-        pii new_pos = current_pos;
+        i2 new_pos = current_pos;
         for(int k=0;k<8;k++) {
           new_pos.first += dl2[j];
           new_pos.second += dc2[j];
@@ -443,7 +443,7 @@ void Game::genNextMoves(const GameState &gs) {
       int dl3[] = {-1, -1, 1, 1};
       int dc3[] = {-1, 1, 1, -1};
       for(int j=0;j<4;j++) {
-        pii new_pos = current_pos;
+        i2 new_pos = current_pos;
         for(int k=0;k<8;k++) {
           new_pos.first += dl3[j];
           new_pos.second += dc3[j];
@@ -531,9 +531,9 @@ double Game::evaluatePiece(int piece) const {
   return mult * value;
 }
 
-void Game::executeMove(std::vector<std::pair<pii, int>> &move, GameState &gs) {
+void Game::executeMove(vi3 &move, GameState &gs) {
   std::clock_t t = std::clock();
-  std::vector<std::pair<pii, int>> rollback;
+  vi3 rollback;
   double score = 0.0;
 
   for(auto &m: move) {
@@ -582,7 +582,7 @@ void Game::undoAction() {
   genNextMoves(gameState.back());
 }
 
-void Game::doAction(pii current_pos, pii new_pos, int choose) {
+void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   std::clock_t t = std::clock();
 
   const GameState curr_gs = getState();
@@ -590,7 +590,7 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   new_gs.enPassant = {-1, -1};
 
   int piece = board[current_pos.first][current_pos.second];
-  std::vector<std::pair<pii, int>> current_move;
+  vi3 current_move;
 
   if(isPawn(piece) && board[new_pos.first][new_pos.second] == EMPTY && current_pos.first != new_pos.first) {
     // Action: En passant
@@ -683,14 +683,14 @@ void Game::doAction(pii current_pos, pii new_pos, int choose) {
   called_counter["doAction"]++;
 }
 
-bool Game::hasMoveFor(pii pos) {
+bool Game::hasMoveFor(i2 pos) {
   for(int i=0;i<nextMoves.size();i++) {
     if(nextMoves[i].first == pos) return true;
   }
   return false;
 }
 
-bool Game::isAvailable(pii curr_pos, pii new_pos) {
+bool Game::isAvailable(i2 curr_pos, i2 new_pos) {
   std::clock_t t = std::clock();
   for(int i=0;i<nextMoves.size();i++) {
     if(nextMoves[i].first == curr_pos && nextMoves[i].second == new_pos) return true;
@@ -701,7 +701,7 @@ bool Game::isAvailable(pii curr_pos, pii new_pos) {
   return false;
 }
 
-bool Game::isPawnPromotion(pii curr_pos, pii new_pos) {
+bool Game::isPawnPromotion(i2 curr_pos, i2 new_pos) {
   if(!isAvailable(curr_pos, new_pos)) return false;
 
   int promotion_y = (isWhiteTurn() ? 0 : 7);
@@ -741,7 +741,7 @@ int Game::getTotalMoves() const {
   return moves.size();
 }
 
-std::vector<std::pair<pii, pii>> Game::getAllMoves() {
+vi4 Game::getAllMoves() {
   return nextMoves;
 }
 

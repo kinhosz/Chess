@@ -8,10 +8,8 @@
 #include <math.h>
 #include <Define.hpp>
 
-typedef std::pair<int, int> pii;
-
 struct GameState {
-  pii enPassant;
+  i2 enPassant;
   int castlingPreserved;
   int gameStatus;
   double piecesScoring;
@@ -57,9 +55,9 @@ class Game {
 private:
   std::vector<GameState> gameState;
   std::vector<std::vector<int>> board;
-  std::vector<std::pair<pii, pii>> nextMoves;
+  vi4 nextMoves;
   std::map<std::string, int> hashedBoardCounter;
-  std::vector<std::vector<std::pair<pii, int>>> moves;
+  std::vector<vi3> moves;
 
   // Performance
   std::map<std::string, double> elapsed_sec;
@@ -80,7 +78,7 @@ private:
   void knightMaskOccupancy();
   void kingMaskOccupancy();
   void pawnMaskOccupancy();
-  void setMaskPosition(int prev_piece, int new_piece, pii position);
+  void setMaskPosition(int prev_piece, int new_piece, i2 position);
 
   void setBoard(int x, int y, int piece);
 
@@ -91,12 +89,12 @@ private:
   std::string getBoardHash();
   int storeHashedBoard();
   int getPositionInfo(int x, int y) const;
-  bool isValidMove(pii curr_pos, pii new_pos);
+  bool isValidMove(i2 curr_pos, i2 new_pos);
   bool isOnCheck();
   void genNextMoves(const GameState &gs);
-  pii getKingPos(bool white);
+  i2 getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
-  void executeMove(std::vector<std::pair<pii, int>> &move, GameState &gs);
+  void executeMove(vi3 &move, GameState &gs);
   double evaluatePiece(int piece) const;
 
 public:
@@ -104,16 +102,16 @@ public:
 
   std::vector<std::vector<int>> getBoard(int move_id=-1);
   void undoAction();
-  void doAction(pii current_pos, pii new_pos, int choose=-1);
-  std::vector<std::pair<pii, int>> getSpecialCells(pii cell);
+  void doAction(i2 current_pos, i2 new_pos, int choose=-1);
+  vi3 getSpecialCells(i2 cell);
   bool isDraw() const;
   bool isCheckMate() const;
   bool isWhiteTurn() const;
-  bool hasMoveFor(pii pos);
-  bool isPawnPromotion(pii curr_pos, pii new_pos);
-  bool isAvailable(pii curr_pos, pii new_pos);
+  bool hasMoveFor(i2 pos);
+  bool isPawnPromotion(i2 curr_pos, i2 new_pos);
+  bool isAvailable(i2 curr_pos, i2 new_pos);
   int getTotalMoves() const;
-  std::vector<std::pair<pii, pii>> getAllMoves();
+  vi4 getAllMoves();
   double getScore() const;
   double getCellScore(int x, int y) const;
 

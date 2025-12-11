@@ -47,7 +47,7 @@ private:
   float PADDING = 50.f;
   float SQUARE_SIZE = 100.f;
   bool showPromotionSquare;
-  std::vector<pii> move;
+  vi2 move;
   std::vector<Button> buttons;
 
   Game game;
@@ -133,10 +133,10 @@ private:
       }
     }
 
-    pii cell = {-1, -1};
+    i2 cell = {-1, -1};
     if(move.size() > 0) cell = move[0];
 
-    std::vector<std::pair<pii, int>> specialCells = game.getSpecialCells(cell);
+    vi3 specialCells = game.getSpecialCells(cell);
     for(int i=0;i<specialCells.size();i++) {
       int x = specialCells[i].first.first;
       int y = specialCells[i].first.second;
@@ -227,7 +227,7 @@ private:
     }
   }
 
-  void doGameMove(pii curr_pos, pii new_pos, int choose=-1) {
+  void doGameMove(i2 curr_pos, i2 new_pos, int choose=-1) {
     game.doAction(curr_pos, new_pos, choose);
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();

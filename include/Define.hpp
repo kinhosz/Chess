@@ -1,6 +1,16 @@
 #ifndef DEFINE_H
 #define DEFINE_H
 
+typedef std::pair<int, int> i2;
+typedef std::pair<i2, int> i3;
+typedef std::pair<i2, i2> i4;
+typedef std::pair<i4, int> i5;
+
+typedef std::vector<i2> vi2;
+typedef std::vector<i3> vi3;
+typedef std::vector<i4> vi4;
+typedef std::vector<i5> vi5;
+
 #define WR 0
 #define WN 1
 #define WB 2
