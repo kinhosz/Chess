@@ -9,8 +9,6 @@ Game::Game() {
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
   gs.piecesScoring = 0.0;
-  gs.moves_white = 0;
-  gs.moves_black = 0;
   gs.repetition = false;
   gs.pieces_counter.resize(12, 0);
   gs.castled = 0;
@@ -150,7 +148,7 @@ void Game::setMaskPosition(int prev_piece, int new_piece, i2 position) {
 }
 
 void Game::setBoard(int x, int y, int piece) {
-  int prev_piece = board[x][y];
+  int prev_piece = getPositionInfo(x, y);
   board[x][y] = piece;
   setMaskPosition(prev_piece, piece, std::make_pair(x, y));
   if(!isKing(piece)) return;
@@ -235,8 +233,8 @@ vi4 Game::getMovesForPawn(i2 current_pos) {
   if(gs.enPassant == std::make_pair(current_pos.first - 1, current_pos.second)
     || gs.enPassant == std::make_pair(current_pos.first + 1, current_pos.second)) {
 
-    int attacker = board[current_pos.first][current_pos.second];
-    int deffensor = board[gs.enPassant.first][gs.enPassant.second];
+    int attacker = getPositionInfo(current_pos.first, current_pos.second);
+    int deffensor = getPositionInfo(gs.enPassant.first, gs.enPassant.second);
 
     setBoard(current_pos.first, current_pos.second, EMPTY);
     setBoard(gs.enPassant.first, gs.enPassant.second, EMPTY);
@@ -587,7 +585,7 @@ void Game::executeMove(vi3 &move, GameState &gs) {
   double score = 0.0;
 
   for(auto &m: move) {
-    int curr_piece = board[m.first.first][m.first.second];
+    int curr_piece = getPositionInfo(m.first.first, m.first.second);
     rollback.push_back({m.first, curr_piece});
     setBoard(m.first.first, m.first.second, m.second);
 
@@ -636,10 +634,10 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   GameState new_gs = curr_gs;
   new_gs.enPassant = {-1, -1};
 
-  int piece = board[current_pos.first][current_pos.second];
+  int piece = getPositionInfo(current_pos.first, current_pos.second);
   vi3 current_move;
 
-  if(isPawn(piece) && board[new_pos.first][new_pos.second] == EMPTY && current_pos.first != new_pos.first) {
+  if(isPawn(piece) && getPositionInfo(new_pos.first, new_pos.second) == EMPTY && current_pos.first != new_pos.first) {
     // Action: En passant
     current_move.push_back({{current_pos.first, current_pos.second}, EMPTY});
     current_move.push_back({{new_pos.first, new_pos.second}, piece});
@@ -711,14 +709,9 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   if(piece == BR && current_pos.first == 0) new_gs.touch(2);
   if(piece == BR && current_pos.first == 7) new_gs.touch(3);
 
-  addState(new_gs);
-  const vi4 &new_moves = genNextMoves();
+  addState(new_gs); // hasAnyMove uses GameState
+  new_gs.hasMoves = hasAnyMove();
   popState();
-
-  new_gs.hasMoves = new_moves.size() > 0;
-
-  if(isWhiteTurn()) new_gs.moves_white = new_moves.size();
-  else new_gs.moves_black = new_moves.size();
 
   if(drawConditions(new_gs)) {
     new_gs.gameStatus = DRAW;
@@ -736,6 +729,15 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
 
 bool Game::hasMoveFor(i2 pos) {
   return getMovesFor(pos).size() > 0;
+}
+
+bool Game::hasAnyMove() {
+  for(int i=0;i<8;i++) {
+    for(int j=0;j<8;j++) {
+      if(hasMoveFor({i, j})) return true;
+    }
+  }
+  return false;
 }
 
 bool Game::isAvailable(i2 curr_pos, i2 new_pos) {
@@ -785,6 +787,103 @@ int Game::getTotalMoves() const {
   return moves.size();
 }
 
+double Game::positionalScoring() const {
+  double sc = 0.0;
+  double signal = 1.0;
+  double bonus_factor = 0.1;
+
+  // Bishop
+  for(uint64_t mask: bishop_mask) {
+    uint64_t bmask = mask;
+    double bishop_score = 3.0;
+    double bishop_reducer = 8+7;
+
+    while(bmask) {
+      uint64_t active_bit = (bmask & -bmask);
+      double free_positions = __builtin_popcountll(
+        bitboard.bishop(
+          63 - __builtin_clzll(active_bit),
+          board_mask
+        )
+      );
+
+      sc += (signal * (free_positions/bishop_reducer) * bishop_score) * bonus_factor;
+      bmask ^= active_bit;
+    }
+    signal *= -1.0;
+  }
+
+  // Rook
+  signal = 1.0;
+  for(uint64_t mask: rook_mask) {
+    uint64_t bmask = mask;
+    double rook_score = 5.0;
+    double rook_reducer = 8+8;
+
+    while(bmask) {
+      uint64_t active_bit = (bmask & -bmask);
+      double free_positions = __builtin_popcountll(
+        bitboard.rook(
+          63 - __builtin_clzll(active_bit),
+          board_mask
+        )
+      );
+
+      sc += (signal * (free_positions/rook_reducer) * rook_score) * bonus_factor;
+      bmask ^= active_bit;
+    }
+    signal *= -1.0;
+  }
+
+  // Knight
+  signal = 1.0;
+  for(uint64_t mask: knight_mask) {
+    uint64_t bmask = mask;
+    double knight_score = 3.0;
+    double knight_reducer = 8;
+
+    while(bmask) {
+      uint64_t active_bit = (bmask & -bmask);
+      double free_positions = __builtin_popcountll(
+        bitboard.knight(
+          63 - __builtin_clzll(active_bit)
+        )
+      );
+
+      sc += (signal * (free_positions/knight_reducer) * knight_score) * bonus_factor;
+      bmask ^= active_bit;
+    }
+    signal *= -1.0;
+  }
+
+  // Pawn Structure - White
+  uint64_t bmask = pawn_mask[0];
+  uint64_t defensor_mask = (bmask&(~FILEA))<<7;
+  defensor_mask |= (bmask&(~FILEH))<<9;
+  sc += __builtin_popcountll(defensor_mask) * bonus_factor;
+
+  // Pawn Structure - Black
+  bmask = pawn_mask[1];
+  defensor_mask = (bmask&(~FILEH))>>7;
+  defensor_mask |= (bmask&(~FILEA))>>9;
+  sc -= __builtin_popcountll(defensor_mask) * bonus_factor;
+
+  uint64_t rank_mask = RANK1<<8;
+  double bonus_id = 0;
+  while(rank_mask&RANK8 == 0) {
+    uint64_t wp_mask = pawn_mask[0];
+    uint64_t bp_mask = pawn_mask[1];
+
+    sc += __builtin_popcountll(wp_mask&rank_mask) * bonus_factor * bonus_id;
+    sc -= __builtin_popcountll(bp_mask&rank_mask) * bonus_factor * (5.0 - bonus_id);
+
+    rank_mask <<= 8;
+    bonus_id += 1.0;
+  }
+
+  return sc;
+}
+
 double Game::getScore() const {
   const GameState &gs = getState();
 
@@ -794,7 +893,7 @@ double Game::getScore() const {
     else return 1000.0;
   }
 
-  return gs.piecesScoring + gs.scoringHeuristic();
+  return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring();
 }
 
 // Performance

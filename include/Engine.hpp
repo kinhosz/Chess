@@ -84,7 +84,7 @@ public:
 
   double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
     cnt++;
-    score = game.getScore();
+    double curr_game_score = score = game.getScore();
 
     if(deep <= 0) return score;
     if(game.isDraw() || game.isCheckMate()) return score;
@@ -95,8 +95,6 @@ public:
 
     score = (game.isWhiteTurn() ? -INF: INF);
     int break_i = sorted_ptr.size();
-  
-    double curr_game_score = game.getScore();
 
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
@@ -164,16 +162,13 @@ public:
     score = explore(game, deep, alpha, beta, cnt);
     std::vector<int> goodMoves;
 
-    int score_int = score * 10;
-
     for(int i=0;i<sorted_ptr.size();i++) {
-      int curr_score_int = sorted_ptr[i].first * 10;
-      if(curr_score_int == score_int) goodMoves.push_back(sorted_ptr[i].second);
+      if(cmp(score, sorted_ptr[i].first) == 0) goodMoves.push_back(sorted_ptr[i].second);
     }
+    assert(goodMoves.size() > 0);
 
     int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
     int choose = goodMoves[pt];
-
 
     return lines[choose]->move;
   }

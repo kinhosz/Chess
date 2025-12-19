@@ -104,6 +104,9 @@ private:
   vi4 getMovesForQueen(i2 current_pos);
   vi4 getMovesForKing(i2 current_pos);
   vi4 getMovesFor(i2 pos);
+  bool hasAnyMove();
+
+  double positionalScoring() const;
 
 public:
   Game();

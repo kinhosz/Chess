@@ -55,7 +55,7 @@ private:
 
   int MATCH_MODE = 1;
   Engine engine;
-  int DEEP_SIZE = 4;
+  int DEEP_SIZE = 5;
 
   bool force_refresh = false;
 
@@ -285,6 +285,7 @@ private:
     seconds = seconds % 60;
 
     std::cerr << "Time elapsed: " << minutes << "m" << seconds << "s\n";
+    std::cerr << "[GAME][SCORE] " << game.getScore() << "\n";
   }
 
 public:

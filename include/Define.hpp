@@ -1,6 +1,11 @@
 #ifndef DEFINE_H
 #define DEFINE_H
 
+const uint64_t FILEH = 0x8080808080808080;
+const uint64_t FILEA = 0x0101010101010101;
+const uint64_t RANK1 = 0x00000000000000ff;
+const uint64_t RANK8 = 0xff00000000000000;
+
 typedef std::pair<int, int> i2;
 typedef std::pair<i2, int> i3;
 typedef std::pair<i2, i2> i4;
