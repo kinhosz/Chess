@@ -1,4 +1,5 @@
-.vscode
+.vscode/
 lib/
 obj/
 chess
+include/SFML

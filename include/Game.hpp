@@ -5,17 +5,19 @@
 #include <map>
 #include <vector>
 #include <assert.h>
-
-typedef std::pair<int, int> pii;
+#include <math.h>
+#include <Define.hpp>
 
 struct GameState {
-  pii enPassant;
+  i2 enPassant;
   int castlingPreserved;
-  std::string gameStatus;
-  double gameScore;
+  int gameStatus;
+  double piecesScoring;
   int moves_white;
   int moves_black;
   bool repetition;
+  int castled;
+  bool hasMoves;
 
   std::vector<int> pieces_counter;
 
@@ -29,50 +31,98 @@ struct GameState {
     assert(id >= 0 && id <= 3);
     castlingPreserved |= (1<<id);
   }
+
+  void doCastling(bool side) {
+    castled |= (1<<side);
+  }
+
+  double scoringHeuristic() const {
+    double sc = (moves_white - moves_black) / sqrt(moves_white + moves_black + 1.0); // moves
+    sc /= 10.0;
+
+    double castling_bonus = 1.5;
+
+    if(castled&1) sc += castling_bonus; // bonus - white castling
+    else if((castlingPreserved&3) == 0) sc += castling_bonus / 2.0;
+
+    if(castled&2) sc -= castling_bonus; // bonus - black castling
+    else if((castlingPreserved&12) == 0) sc -= castling_bonus / 2.0;
+
+    return sc;
+  }
 };
 
 class Game {
 private:
   std::vector<GameState> gameState;
-  std::vector<std::vector<std::string>> board;
-  std::vector<std::pair<pii, pii>> nextMoves;
+  std::vector<std::vector<int>> board;
   std::map<std::string, int> hashedBoardCounter;
-  std::vector<std::vector<std::pair<pii, std::string>>> moves;
+  std::vector<vi3> moves;
 
   // Performance
   std::map<std::string, double> elapsed_sec;
   std::map<std::string, int> called_counter;
 
+  // Bitboard
+  uint64_t board_mask;
+  std::vector<uint64_t> bishop_mask;
+  std::vector<uint64_t> rook_mask;
+  std::vector<uint64_t> knight_mask;
+  std::vector<uint64_t> king_mask;
+  std::vector<uint64_t> pawn_mask;
+  int king_pos[2];
+
+  void boardMaskOccupancy();
+  void bishopMaskOccupancy();
+  void rookMaskOccupancy();
+  void knightMaskOccupancy();
+  void kingMaskOccupancy();
+  void pawnMaskOccupancy();
+  void setMaskPosition(int prev_piece, int new_piece, i2 position);
+
+  void setBoard(int x, int y, int piece);
+
   GameState getState() const;
   void addState(GameState gs);
+  void popState();
 
   void buildBoard();
   std::string getBoardHash();
   int storeHashedBoard();
-  std::string getPositionInfo(int x, int y) const;
-  bool isValidMove(pii curr_pos, pii new_pos);
+  int getPositionInfo(int x, int y) const;
+  bool isValidMove(i2 curr_pos, i2 new_pos);
   bool isOnCheck();
-  void genNextMoves(const GameState gs);
-  pii getKingPos(bool white);
+  i2 getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
-  void executeMove(std::vector<std::pair<pii, std::string>> &move, GameState &gs);
-  double evaluatePiece(std::string piece);
+  void executeMove(vi3 &move, GameState &gs);
+  double evaluatePiece(int piece) const;
+
+  vi4 getMovesForPawn(i2 current_pos);
+  vi4 getMovesForRook(i2 current_pos);
+  vi4 getMovesForKnight(i2 current_pos);
+  vi4 getMovesForBishop(i2 current_pos);
+  vi4 getMovesForQueen(i2 current_pos);
+  vi4 getMovesForKing(i2 current_pos);
+  vi4 getMovesFor(i2 pos);
+  bool hasAnyMove();
+
+  double positionalScoring() const;
 
 public:
   Game();
 
-  std::vector<std::vector<std::string>> getBoard(int move_id=-1);
+  std::vector<std::vector<int>> getBoard(int move_id=-1);
   void undoAction();
-  void doAction(pii current_pos, pii new_pos, int choose=-1);
-  std::vector<std::pair<pii, int>> getSpecialCells(pii cell);
+  void doAction(i2 current_pos, i2 new_pos, int choose=-1);
+  vi3 getSpecialCells(i2 cell);
   bool isDraw() const;
   bool isCheckMate() const;
   bool isWhiteTurn() const;
-  bool hasMoveFor(pii pos);
-  bool isPawnPromotion(pii curr_pos, pii new_pos);
-  bool isAvailable(pii curr_pos, pii new_pos);
+  bool hasMoveFor(i2 pos);
+  bool isPawnPromotion(i2 curr_pos, i2 new_pos);
+  bool isAvailable(i2 curr_pos, i2 new_pos);
   int getTotalMoves() const;
-  std::vector<std::pair<pii, pii>> getAllMoves();
+  vi4 genNextMoves();
   double getScore() const;
   double getCellScore(int x, int y) const;
 

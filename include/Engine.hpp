@@ -8,12 +8,9 @@
 #include <algorithm>
 
 #include <Game.hpp>
+#include <Define.hpp>
 
 std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-
-typedef std::pair<int, int> i2;
-typedef std::pair<i2, i2> i4;
-typedef std::pair<i4, int> i5;
 
 double INF = 1e8;
 
@@ -42,7 +39,7 @@ private:
   std::vector<std::pair<double, int>> sorted_ptr;
 
   void createNextLines(Game& game) {
-    const auto& moves = game.getAllMoves();
+    const auto& moves = game.genNextMoves();
 
     bool isWhiteTurn = game.isWhiteTurn();
 
@@ -87,30 +84,26 @@ public:
 
   double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
     cnt++;
-    score = game.getScore();
+    double curr_game_score = score = game.getScore();
 
     if(deep <= 0) return score;
     if(game.isDraw() || game.isCheckMate()) return score;
     if(isLinesMissing(game)) createNextLines(game);
 
-    double first_assign = true;
+    bool first_assign = true;
     bool whiteTurn = game.isWhiteTurn();
 
     score = (game.isWhiteTurn() ? -INF: INF);
     int break_i = sorted_ptr.size();
-  
-    double curr_game_score = game.getScore();
 
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
       const auto &line = lines[ptr];
-  
+
       game.doAction(line->move.first.first, line->move.first.second, line->move.second);
 
       double sc = line->explore(game, deep-1, alpha, beta, cnt);
 
-      // Preventing get less captures on the last level
-      if(deep == 1 && cmp(curr_game_score, sc) != 0) sc += -game.getCellScore(move.first.second.first, move.first.second.second);
 
       sorted_ptr[i].first = sc;
 
@@ -167,21 +160,15 @@ public:
     double alpha = -INF;
     double beta = INF;
     score = explore(game, deep, alpha, beta, cnt);
-    std::cerr << cnt << " nodes generated\n";
     std::vector<int> goodMoves;
 
-    int score_int = score * 10;
-
     for(int i=0;i<sorted_ptr.size();i++) {
-      int curr_score_int = sorted_ptr[i].first * 10;
-      if(curr_score_int == score_int) goodMoves.push_back(sorted_ptr[i].second);
+      if(cmp(score, sorted_ptr[i].first) == 0) goodMoves.push_back(sorted_ptr[i].second);
     }
-    std::cerr << "good moves: " << goodMoves.size() << "\n";
+    assert(goodMoves.size() > 0);
 
     int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
     int choose = goodMoves[pt];
-
-    std::cerr << "future score: " << lines[choose]->score << "\n";
 
     return lines[choose]->move;
   }
