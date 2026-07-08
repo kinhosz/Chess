@@ -2,6 +2,7 @@
 #include <chrono>
 #include <iomanip>
 #include <Bitboard.hpp>
+#include <Profiler.hpp>
 
 Game::Game() {
   GameState gs;
@@ -479,7 +480,6 @@ int Game::getPositionInfo(int x, int y) const {
 }
 
 bool Game::isOnCheck() {
-  std::clock_t t = std::clock();
   i2 k_pos = getKingPos(isWhiteTurn());
   int king_x = k_pos.first;
   int king_y = k_pos.second;
@@ -515,11 +515,7 @@ bool Game::isOnCheck() {
   mask = bitboard.rook(cell, board_mask);
   uint64_t r_mask = rook_mask[black];
   ret |= (mask&r_mask);
-  
 
-  t = (std::clock() - t);
-  elapsed_sec["isOnCheck"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["isOnCheck"]++;
   return ret;
 }
 
@@ -545,8 +541,6 @@ bool Game::isValidMove(i2 curr_pos, i2 new_pos) {
 }
 
 vi4 Game::genNextMoves() {
-  std::clock_t t = std::clock();
-
   vi4 nextMoves;
 
   for(int i=0;i<8;i++) {
@@ -556,10 +550,6 @@ vi4 Game::genNextMoves() {
       nextMoves.insert(nextMoves.end(), new_moves.begin(), new_moves.end());
     }
   }
-
-  t = (std::clock() - t);
-  elapsed_sec["genNextMoves"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["genNextMoves"]++;
 
   return nextMoves;
 }
@@ -580,7 +570,6 @@ double Game::evaluatePiece(int piece) const {
 }
 
 void Game::executeMove(vi3 &move, GameState &gs) {
-  std::clock_t t = std::clock();
   vi3 rollback;
   double score = 0.0;
 
@@ -609,13 +598,10 @@ void Game::executeMove(vi3 &move, GameState &gs) {
 
   moves.push_back(rollback);
   gs.piecesScoring += score;
-
-  t = (std::clock() - t);
-  elapsed_sec["executeMove"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["executeMove"]++;
 }
 
 void Game::undoAction() {
+  Profiler::getInstance().start("Game::undoAction");
   gameState.pop_back();
 
   hashedBoardCounter[getBoardHash()]--;
@@ -625,11 +611,11 @@ void Game::undoAction() {
     setBoard(m.first.first, m.first.second, m.second);
   }
   moves.pop_back();
+  Profiler::getInstance().stop("Game::undoAction");
 }
 
 void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
-  std::clock_t t = std::clock();
-
+  Profiler::getInstance().start("Game::doAction");
   const GameState curr_gs = getState();
   GameState new_gs = curr_gs;
   new_gs.enPassant = {-1, -1};
@@ -721,10 +707,7 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   }
 
   addState(new_gs);
-
-  t = (std::clock() - t);
-  elapsed_sec["doAction"] += ((double)t/CLOCKS_PER_SEC) * 1000.0;
-  called_counter["doAction"]++;
+  Profiler::getInstance().stop("Game::doAction");
 }
 
 bool Game::hasMoveFor(i2 pos) {
@@ -894,26 +877,6 @@ double Game::getScore() const {
   }
 
   return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring();
-}
-
-// Performance
-void Game::performance() {
-  std::cerr << "----------------------\n";
-  std::cerr << "PERF ANALYSIS\n\n";
-  for(const auto &data: elapsed_sec) {
-    const std::string &f = data.first;
-    int cnt = called_counter.at(f);
-    double ms = (data.second / cnt);
-    std::cerr << std::fixed << std::setprecision(3);
-
-    std::cerr << "Function: " << f << "\n";
-    std::cerr << "* Total time:     " << (data.second / (1000.0)) << "s\n";
-    std::cerr << "* function calls: " << cnt << "\n";
-    std::cerr << "* average time:   " << ms << "ms\n\n"; 
-  }
-
-  elapsed_sec.clear();
-  called_counter.clear();
 }
 
 double Game::getCellScore(int x, int y) const {

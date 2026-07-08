@@ -59,10 +59,6 @@ private:
   std::map<std::string, int> hashedBoardCounter;
   std::vector<vi3> moves;
 
-  // Performance
-  std::map<std::string, double> elapsed_sec;
-  std::map<std::string, int> called_counter;
-
   // Bitboard
   uint64_t board_mask;
   std::vector<uint64_t> bishop_mask;
@@ -125,9 +121,6 @@ public:
   vi4 genNextMoves();
   double getScore() const;
   double getCellScore(int x, int y) const;
-
-  // Performance
-  void performance();
 
   // Debugger;
   void debugger();

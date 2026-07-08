@@ -6,6 +6,7 @@
 
 #include <Game.hpp>
 #include <Engine.hpp>
+#include <Profiler.hpp>
 
 class Button {
   std::string group = "";
@@ -53,9 +54,9 @@ private:
   Game game;
   int move_counter;
 
-  int MATCH_MODE = 1;
+  int MATCH_MODE = 3;
   Engine engine;
-  int DEEP_SIZE = 5;
+  int DEEP_SIZE = 6;
 
   bool force_refresh = false;
 
@@ -237,7 +238,6 @@ private:
     game.doAction(curr_pos, new_pos, choose);
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();
-    engine.performance();
     force_refresh = true;
   }
 
@@ -284,15 +284,10 @@ private:
     if(isPlayerTurn()) return;
     if(game.isCheckMate() || game.isDraw()) return;
 
-    std::clock_t t = std::clock();
     i5 move = engine.getNextMove(DEEP_SIZE);
     doGameMove(move.first.first, move.first.second, move.second);
-    t = (std::clock() - t);
-    int seconds = t / CLOCKS_PER_SEC;
-    int minutes = seconds / 60;
-    seconds = seconds % 60;
 
-    std::cerr << "Time elapsed: " << minutes << "m" << seconds << "s\n";
+    Profiler::getInstance().logAll();
     std::cerr << "[GAME][SCORE] " << game.getScore() << "\n";
   }
 

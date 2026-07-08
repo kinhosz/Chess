@@ -9,6 +9,7 @@
 
 #include <Game.hpp>
 #include <Define.hpp>
+#include <Profiler.hpp>
 
 std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
 
@@ -33,12 +34,12 @@ bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
 class EngineNode {
 private:
   double score;
-  int level;
   int next_line;
   std::vector<std::unique_ptr<EngineNode>> lines;
   std::vector<std::pair<double, int>> sorted_ptr;
 
   void createNextLines(Game& game) {
+    Profiler::getInstance().start("EngineNode::createNextLines");
     const auto& moves = game.genNextMoves();
 
     bool isWhiteTurn = game.isWhiteTurn();
@@ -47,16 +48,17 @@ private:
       const auto &move = moves[i];
       if(game.isPawnPromotion(move.first, move.second)) {
         for(int i=0;i<4;i++) {
-          lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, i), level));
+          lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, i)));
         }
       } else {
-        lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1), level + 1));
+        lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1)));
       }
 
       sorted_ptr.push_back({0.0, i});
     }
   
     std::shuffle(sorted_ptr.begin(), sorted_ptr.end(), rng);
+    Profiler::getInstance().stop("EngineNode::createNextLines");
   }
 
   bool isLinesMissing(const Game& game) const {
@@ -67,9 +69,8 @@ private:
 public:
   i5 move;
 
-  EngineNode(i5 move, int level) {
+  EngineNode(i5 move) {
     this->move = move;
-    this->level = level;
     score = 0.0;
     next_line = -1;
   }
@@ -83,14 +84,14 @@ public:
   }
 
   double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
+    Profiler::getInstance().start("EngineNode::explore");
     cnt++;
-    double curr_game_score = score = game.getScore();
+    score = game.getScore();
 
-    if(deep <= 0) return score;
-    if(game.isDraw() || game.isCheckMate()) return score;
+    if(deep <= 0) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
+    if(game.isDraw() || game.isCheckMate()) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
     if(isLinesMissing(game)) createNextLines(game);
 
-    bool first_assign = true;
     bool whiteTurn = game.isWhiteTurn();
 
     score = (game.isWhiteTurn() ? -INF: INF);
@@ -109,14 +110,8 @@ public:
 
       game.undoAction(); // Rollback
 
-      if(first_assign) {
-        score = sc;
-        first_assign = false;
-      } else if(whiteTurn) {
-        score = std::max(score, sc);
-      } else {
-        score = std::min(score, sc);
-      }
+      if(whiteTurn) score = std::max(score, sc);
+      else score = std::min(score, sc);
 
       // Alpha-beta prunning (cutoff)
       if(whiteTurn) {
@@ -140,10 +135,11 @@ public:
       sorted_ptr[i].first = score;
     }
 
-    // For some reason, sort after is better the before?
+    // For some reason, sort after is better than before?
     if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);
     else std::sort(sorted_ptr.begin(), sorted_ptr.end(), min_cmp);
 
+    Profiler::getInstance().stop("EngineNode::explore");
     return score;
   }
 
@@ -204,7 +200,7 @@ public:
 
   Engine() {
     i5 move = {{{-1, -1}, {-1, -1}}, -1};
-    root = std::make_unique<EngineNode>(move, 0);
+    root = std::make_unique<EngineNode>(move);
   }
 
   i5 getNextMove(int deep_size) {
@@ -214,11 +210,8 @@ public:
   }
 
   void moveDone(i5 move) {
+    std::clock_t t = std::clock();
     root->moveDone(game, move);
-  }
-
-  void performance() {
-    game.performance();
   }
 };
 
