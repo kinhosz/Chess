@@ -11,7 +11,7 @@ Game::Game() {
   gs.castlingPreserved = 0;
   gs.piecesScoring = 0.0;
   gs.repetition = false;
-  gs.pieces_counter.resize(12, 0);
+  gs.pieces_counter.resize(24, 0);
   gs.castled = 0;
   gs.hasMoves = true;
   // BitBoard
@@ -35,10 +35,10 @@ Game::Game() {
     for(int j=0;j<8;j++) {
       int id = board[i][j];
       if(id == EMPTY || id == WK || id == BK) continue;
-      if(id == WB || id == BB) {
-        id += (i%2 + j%2)%2;
-      }
       gs.pieces_counter[id]++;
+
+      if(id == WB) gs.pieces_counter[(i%2 + j%2)%2 == 0 ? WB_LIGHT : WB_DARK]++;
+      else if(id == BB) gs.pieces_counter[(i%2 + j%2)%2 == 0 ? BB_LIGHT : BB_DARK]++;
     }
   }
 
@@ -587,12 +587,12 @@ void Game::executeMove(vi3 &move, GameState &gs) {
 
     for(auto &t: tmp) {
       int id = t.first;
-      if(id == WB || id == BB) {
-        id += (m.first.first%2 + m.first.second%2)%2;
-      }
       if(id == EMPTY || id == BK || id == WK) continue;
 
       gs.pieces_counter[id] += t.second;
+
+      if(id == WB) gs.pieces_counter[(m.first.first%2 + m.first.second%2)%2 == 0 ? WB_LIGHT : WB_DARK] += t.second;
+      else if(id == BB) gs.pieces_counter[(m.first.first%2 + m.first.second%2)%2 == 0 ? BB_LIGHT : BB_DARK] += t.second;
     }
   }
 
@@ -747,15 +747,31 @@ bool Game::drawConditions(const GameState &gs) const {
   // Insufficient mating material
   bool isInsufficient = true;
   int total_pieces = 0;
-  for(int i=0;i<gs.pieces_counter.size();i++) {
+  // indices 0..11 are the real WR..BP material counts; the WB_LIGHT/WB_DARK/
+  // BB_LIGHT/BB_DARK slots are just a color breakdown of WB/BB and would
+  // double-count bishops if included here
+  for(int i=0;i<12;i++) {
     total_pieces += gs.pieces_counter[i];
   }
 
   if(total_pieces > 2) isInsufficient = false;
   else if(total_pieces == 2) {
-    if(gs.pieces_counter[2] + gs.pieces_counter[8] != 2 && gs.pieces_counter[3] + gs.pieces_counter[9] != 2) isInsufficient = false;
+    int whiteBishops = gs.pieces_counter[WB];
+    int blackBishops = gs.pieces_counter[BB];
+
+    if(whiteBishops == 2) {
+      // sufficient only if the pair covers both square colors (forced mate exists)
+      isInsufficient = (gs.pieces_counter[WB_LIGHT] == 0 || gs.pieces_counter[WB_DARK] == 0);
+    } else if(blackBishops == 2) {
+      isInsufficient = (gs.pieces_counter[BB_LIGHT] == 0 || gs.pieces_counter[BB_DARK] == 0);
+    } else if(whiteBishops == 1 && blackBishops == 1) {
+      // one minor piece per side can never force mate, regardless of color
+      isInsufficient = true;
+    } else {
+      isInsufficient = false;
+    }
   } else if(total_pieces == 1) {
-    const std::vector<int> pos = {0, 4, 5, 6, 10, 11};
+    const std::vector<int> pos = {WR, WQ, WP, BR, BQ, BP};
     for(auto &p: pos) {
       if(gs.pieces_counter[p] > 0) isInsufficient = false;
     }
@@ -853,7 +869,7 @@ double Game::positionalScoring() const {
 
   uint64_t rank_mask = RANK1<<8;
   double bonus_id = 0;
-  while(rank_mask&RANK8 == 0) {
+  while((rank_mask&RANK8) == 0) {
     uint64_t wp_mask = pawn_mask[0];
     uint64_t bp_mask = pawn_mask[1];
 

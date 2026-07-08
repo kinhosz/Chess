@@ -56,7 +56,7 @@ private:
 
   int MATCH_MODE = 3;
   Engine engine;
-  int DEEP_SIZE = 6;
+  int DEEP_SIZE = 5;
 
   bool force_refresh = false;
 

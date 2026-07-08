@@ -34,6 +34,13 @@ typedef std::vector<i5> vi5;
 #define CHECKMATE 15
 #define ALIVE 16
 
+// pieces_counter sub-slots tracking bishop square color, kept apart from
+// the WR..BP material indices above so they can never collide with them
+#define WB_LIGHT 20
+#define WB_DARK 21
+#define BB_LIGHT 22
+#define BB_DARK 23
+
 inline int getColor(int piece) {
     if(piece > 11) return -1;
     if(piece < 6) return 0;

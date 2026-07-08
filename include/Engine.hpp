@@ -116,14 +116,12 @@ public:
       // Alpha-beta prunning (cutoff)
       if(whiteTurn) {
         if(cmp(score, beta) != -1) {
-          score = 1000.0; // To avoid use this branch as we dont calculate it until the end
           break_i = i;
           break;
         }
         alpha = std::max(alpha, score);
       } else {
         if(cmp(score, alpha) != 1) {
-          score = -1000.0;
           break_i = i;
           break;
         }
@@ -131,13 +129,13 @@ public:
       }
     }
 
-    for(int i=break_i;i<sorted_ptr.size();i++) {
-      sorted_ptr[i].first = score;
-    }
+    // [0, break_i) were fully evaluated and proven worse than the cutoff line;
+    // sort just that slice, then rotate it behind the cutoff line and the
+    // untouched (still unexplored) lines, preserving their prior ordering.
+    if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.begin() + break_i, max_cmp);
+    else std::sort(sorted_ptr.begin(), sorted_ptr.begin() + break_i, min_cmp);
 
-    // For some reason, sort after is better than before?
-    if(whiteTurn) std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);
-    else std::sort(sorted_ptr.begin(), sorted_ptr.end(), min_cmp);
+    std::rotate(sorted_ptr.begin(), sorted_ptr.begin() + break_i, sorted_ptr.end());
 
     Profiler::getInstance().stop("EngineNode::explore");
     return score;
