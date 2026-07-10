@@ -2,6 +2,7 @@
 #include <Game.hpp>
 #include <Engine.hpp>
 #include "engine_test_access.hpp"
+#include "position_builder.hpp"
 
 // max_cmp/min_cmp used to delegate to cmp(), whose epsilon-based "equality"
 // breaks the transitivity std::sort requires for a strict weak ordering --
@@ -72,6 +73,37 @@ TEST(engine_always_returns_legal_moves_and_does_not_crash) {
     game.doAction(move.first.first, move.first.second, move.second);
     engine.moveDone(move);
   }
+}
+
+// Regression test for a real reported blunder: a discovered attack left
+// black's queen on h5 hanging to White's bishop on e2 (the diagonal opened up
+// once a knight that used to block it moved away). Before the lastBestChild
+// fix, getNextMove() re-scanned sorted_ptr for any score within epsilon of
+// the best and picked randomly among "ties" -- but non-chosen siblings only
+// hold fail-soft alpha-beta bounds, not exact scores, so the move that
+// actually loses the queen (Bg7-f8, ignoring the threat) spuriously tied
+// with the move that saves it (Qh5-h4) in the real game. Depth 5 is deep
+// enough to see the queen capture, so the engine must clearly prefer saving it.
+TEST(engine_saves_a_hanging_queen_instead_of_tying_with_losing_it) {
+  Game g;
+  TestPositionBuilder::setup(g, {
+    {0,0,BR},{5,0,BB},{6,0,BN},{7,0,BR},{4,0,BK},
+    {1,1,BP},{3,1,BN},{4,1,BP},{5,1,BP},
+    {2,2,BP},{6,2,BP},{7,2,BP},
+    {0,3,BP},{3,3,BP},{4,3,WP},{5,3,BB},{7,3,BQ},
+    {3,4,WP},
+    {2,5,WN},{7,5,WP},
+    {0,6,WP},{1,6,WP},{2,6,WP},{3,6,WB},{4,6,WB},{5,6,WP},{6,6,WP},{7,6,WN},
+    {0,7,WR},{3,7,WQ},{5,7,WR},{6,7,WK},
+  }, false); // black to move
+
+  i5 rootMove = {{{-1,-1},{-1,-1}}, -1};
+  EngineNode node(rootMove);
+  int cnt = 0;
+  i5 chosen = node.getNextMove(g, 5, cnt);
+
+  CHECK(chosen.first.first == i2(7,3));  // from h5
+  CHECK(chosen.first.second == i2(7,4)); // to h4
 }
 
 TEST(engine_moveDone_tree_stays_consistent_across_several_plies) {

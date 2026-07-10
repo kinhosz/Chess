@@ -1,6 +1,7 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
+#include <cstdlib>
 #include <memory>
 #include <vector>
 #include <chrono>
@@ -11,7 +12,23 @@
 #include <Define.hpp>
 #include <Profiler.hpp>
 
-std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+// Randomness (move shuffling in createNextLines + tie-break selection in
+// getNextMove) is seeded from CHESS_SEED when set, so a whole game -- shuffle
+// order and all -- can be replayed bit-for-bit to reproduce a specific bad
+// move: `CHESS_SEED=1 ./selfplay ...`. Defaults to a fixed seed (not the
+// clock) so every run is reproducible out of the box; set CHESS_SEED to any
+// other integer to get a different (still reproducible) game.
+inline unsigned long chessRngSeed() {
+  const char *seedEnv = std::getenv("CHESS_SEED");
+  if(seedEnv) return std::strtoul(seedEnv, nullptr, 10);
+  return 1;
+}
+
+// Captured once so it can be logged (e.g. MatchPage prints it at game start)
+// -- otherwise there'd be no way to tell, after the fact, which seed a given
+// game's log actually used.
+unsigned long CHESS_RNG_SEED_USED = chessRngSeed();
+std::mt19937 rng(CHESS_RNG_SEED_USED);
 
 double INF = 1e8;
 
@@ -32,6 +49,21 @@ bool max_cmp(std::pair<double, int> a, std::pair<double, int> b) {
 bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
   return a.first < b.first;
 }
+
+// One ranked candidate move from the root of a search, for explaining why a
+// move was picked over the alternatives.
+struct MoveCandidate {
+  i5 move;
+  double score;
+};
+
+// Optional output of Engine::getNextMove(): the ranked root candidates plus
+// the principal variation (the line of best replies the search expects to
+// follow from the chosen move), for logging "why" a move was chosen.
+struct MoveExplanation {
+  std::vector<MoveCandidate> candidates; // best-first
+  std::vector<i5> principalVariation;    // starts with the chosen move
+};
 
 class EngineNode {
   // Test-only seam: lets tests/engine_test_access.hpp inspect lines/sorted_ptr
@@ -90,10 +122,17 @@ public:
     return score;
   }
 
+  // Index into `lines` of whichever child produced this node's most recently
+  // returned `score` -- the one child whose value is guaranteed exact for
+  // this call, as opposed to the fail-soft *bounds* alpha-beta leaves behind
+  // on the other siblings (see the comment above bestChild below).
+  int lastBestChild = -1;
+
   double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
     Profiler::getInstance().start("EngineNode::explore");
     cnt++;
     score = game.getScore();
+    lastBestChild = -1; // no children explored yet this call; leaves stay -1
 
     if(deep <= 0) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
     if(game.isDraw() || game.isCheckMate()) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
@@ -103,6 +142,15 @@ public:
 
     score = (game.isWhiteTurn() ? -INF: INF);
     int break_i = sorted_ptr.size();
+    // The other siblings' sorted_ptr[*].first values are alpha-beta *bounds*,
+    // not exact scores (each was explored under whatever alpha/beta this
+    // loop had tightened to by the time it was reached, so a sibling visited
+    // later can return a merely-good-enough cutoff value that happens to
+    // numerically match, or even beat, the true best without actually being
+    // that good). Only the child that actually set the returned `score` via
+    // strict improvement below is guaranteed exact -- track it directly
+    // instead of re-scanning sorted_ptr for "ties" against a bound afterward.
+    int bestChild = -1;
 
     for(int i=0;i<sorted_ptr.size();i++) {
       int ptr = sorted_ptr[i].second;
@@ -117,8 +165,8 @@ public:
 
       game.undoAction(); // Rollback
 
-      if(whiteTurn) score = std::max(score, sc);
-      else score = std::min(score, sc);
+      bool improved = whiteTurn ? (sc > score) : (sc < score);
+      if(improved) { score = sc; bestChild = ptr; }
 
       // Alpha-beta prunning (cutoff)
       if(whiteTurn) {
@@ -136,6 +184,8 @@ public:
       }
     }
 
+    lastBestChild = bestChild;
+
     // [0, break_i) were fully evaluated and proven worse than the cutoff line;
     // sort just that slice, then rotate it behind the cutoff line and the
     // untouched (still unexplored) lines, preserving their prior ordering.
@@ -148,11 +198,25 @@ public:
     return score;
   }
 
-  i5 getNextMove(Game &game, int deep, int &cnt) {
+  // Walks down from this node following, at each step, the child that
+  // explore() proved is exactly this node's best continuation -- following
+  // lastBestChild rather than re-scanning sorted_ptr for a numeric match,
+  // since siblings can hold fail-soft bounds that coincidentally equal the
+  // best score without actually being that good.
+  void collectPV(std::vector<i5> &pv, int maxLen) const {
+    const EngineNode *cur = this;
+    for(int step=0; step<maxLen && cur->lastBestChild != -1; step++) {
+      int bestIdx = cur->lastBestChild;
+      pv.push_back(cur->lines[bestIdx]->move);
+      cur = cur->lines[bestIdx].get();
+    }
+  }
+
+  i5 getNextMove(Game &game, int deep, int &cnt, MoveExplanation *explain_out = nullptr) {
     if(next_line != -1){
       i5 m = lines[next_line]->move;
       game.doAction(m.first.first, m.first.second, m.second);
-      i5 ret = lines[next_line]->getNextMove(game, deep, cnt);
+      i5 ret = lines[next_line]->getNextMove(game, deep, cnt, explain_out);
       game.undoAction();
 
       return ret;
@@ -161,17 +225,39 @@ public:
     double alpha = -INF;
     double beta = INF;
     score = explore(game, deep, alpha, beta, cnt);
-    std::vector<int> goodMoves;
 
-    for(int i=0;i<sorted_ptr.size();i++) {
-      if(cmp(score, sorted_ptr[i].first) == 0) goodMoves.push_back(sorted_ptr[i].second);
+    // lastBestChild (set by explore() above) is the one child proven to
+    // exactly achieve `score` -- unlike its siblings, which may only hold
+    // fail-soft bounds that happen to look tied. Use it directly instead of
+    // re-scanning sorted_ptr with an epsilon comparison and picking randomly
+    // among "ties" that might not really be ties.
+    int choose = lastBestChild;
+    assert(choose != -1);
+
+    if(explain_out) {
+      explain_out->candidates.clear();
+      for(auto &sp: sorted_ptr) explain_out->candidates.push_back({lines[sp.second]->move, sp.first});
+      bool whiteTurn = game.isWhiteTurn();
+      std::sort(explain_out->candidates.begin(), explain_out->candidates.end(),
+        [whiteTurn](const MoveCandidate &a, const MoveCandidate &b) {
+          return whiteTurn ? a.score > b.score : a.score < b.score;
+        });
+
+      explain_out->principalVariation.clear();
+      explain_out->principalVariation.push_back(lines[choose]->move);
+      lines[choose]->collectPV(explain_out->principalVariation, deep - 1);
     }
-    assert(goodMoves.size() > 0);
 
-    int pt = std::uniform_int_distribution<int>(0, (int)goodMoves.size() - 1)(rng);
-    int choose = goodMoves[pt];
+    i5 finalMove = lines[choose]->move;
+    // Logged directly at the decision point (not by callers) so it's always
+    // present regardless of who's driving the engine -- selfplay, the real
+    // match UI, or a debugging script -- with no extra flag to remember.
+    std::cerr << "[ENGINE][DECISION] " << (game.isWhiteTurn() ? "white" : "black")
+               << " chose " << squareName(finalMove.first.first) << squareName(finalMove.first.second)
+               << " promo=" << finalMove.second << " score=" << score
+               << " depth=" << deep << " nodes=" << cnt << "\n";
 
-    return lines[choose]->move;
+    return finalMove;
   }
 
   void moveDone(Game &game, i5 move) {
@@ -212,15 +298,14 @@ public:
     root = std::make_unique<EngineNode>(move);
   }
 
-  i5 getNextMove(int deep_size, int *nodes_out = nullptr) {
+  i5 getNextMove(int deep_size, int *nodes_out = nullptr, MoveExplanation *explain_out = nullptr) {
     int cnt = 0;
-    auto ret = root->getNextMove(game, deep_size, cnt);
+    auto ret = root->getNextMove(game, deep_size, cnt, explain_out);
     if(nodes_out) *nodes_out = cnt;
     return ret;
   }
 
   void moveDone(i5 move) {
-    std::clock_t t = std::clock();
     root->moveDone(game, move);
   }
 };

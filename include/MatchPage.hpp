@@ -4,43 +4,10 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Graphics/Font.hpp>
 
+#include <Button.hpp>
 #include <Game.hpp>
 #include <Engine.hpp>
 #include <Profiler.hpp>
-
-class Button {
-  std::string group = "";
-  std::string name = "";
-public:
-  float x0, xf, y0, yf;
-
-  Button(float x0, float xf, float y0, float yf) {
-    this->x0 = x0;
-    this->xf = xf;
-    this->y0 = y0;
-    this->yf = yf;
-  }
-
-  void setGroup(std::string group) {
-    this->group = group;
-  }
-
-  std::string getGroup() const {
-    return group;
-  }
-
-  void setName(std::string name) {
-    this->name = name;
-  }
-
-  std::string getName() const {
-    return name;
-  }
-
-  bool isClicked(int x, int y) {
-    return x >= x0 && x <= xf && y >= y0 && y <= yf;
-  }
-};
 
 class MatchPage {
 private:
@@ -164,6 +131,62 @@ private:
     }
   }
 
+  void drawCoordinates(sf::RenderWindow &window) {
+    sf::Font font("assets/fonts/bitcount_prop_single.ttf");
+    const std::string files = "abcdefgh";
+
+    for(int i=0;i<8;i++) {
+      sf::Text text(font);
+      text.setString(std::string(1, files[i]));
+      text.setCharacterSize(16);
+      text.setFillColor(sf::Color(225, 225, 230));
+      text.setPosition({PADDING + i * SQUARE_SIZE + SQUARE_SIZE / 2 - 5, PADDING + 8 * SQUARE_SIZE + 6});
+      window.draw(text);
+    }
+
+    for(int j=0;j<8;j++) {
+      sf::Text text(font);
+      text.setString(std::to_string(8 - j)); // row j=0 is rank 8 (black's back rank), row j=7 is rank 1
+      text.setCharacterSize(16);
+      text.setFillColor(sf::Color(225, 225, 230));
+      text.setPosition({PADDING - 22, PADDING + j * SQUARE_SIZE + SQUARE_SIZE / 2 - 10});
+      window.draw(text);
+    }
+  }
+
+  // Captured pieces = how many of each type are missing from the board
+  // compared to the starting setup; no new Game API needed, getBoard() is
+  // already public.
+  void drawCapturedPieces(sf::RenderWindow &window) {
+    const std::vector<std::vector<int>> &setup = game.getBoard(move_counter);
+    std::map<int, int> onBoard;
+    for(int i=0;i<8;i++) {
+      for(int j=0;j<8;j++) {
+        if(setup[i][j] != EMPTY) onBoard[setup[i][j]]++;
+      }
+    }
+
+    std::vector<std::pair<int,int>> startingCounts = {
+      {WQ,1},{WR,2},{WB,2},{WN,2},{WP,8}, {BQ,1},{BR,2},{BB,2},{BN,2},{BP,8}
+    };
+
+    float iconSize = 24.f;
+    float x0 = PADDING + 8 * SQUARE_SIZE + PADDING;
+    float yWhiteCaptured = PADDING + 4 * SQUARE_SIZE + 20; // black pieces white has captured
+    float yBlackCaptured = yWhiteCaptured + iconSize + 10;  // white pieces black has captured
+
+    float xWhite = x0, xBlack = x0;
+    for(auto &sc: startingCounts) {
+      int captured = sc.second - onBoard[sc.first];
+      float &x = isWhite(sc.first) ? xBlack : xWhite; // captured white piece -> shown on black's tally
+      float y = isWhite(sc.first) ? yBlackCaptured : yWhiteCaptured;
+      for(int k=0;k<captured;k++) {
+        drawPiece(window, getPieceName(sc.first), x, y, iconSize * 0.7f / SQUARE_SIZE);
+        x += iconSize;
+      }
+    }
+  }
+
   void drawActionButtons(sf::RenderWindow &window) {
     sf::Texture texture;
     int offset_id = 8*8 + 4;
@@ -192,14 +215,14 @@ private:
     window.draw(sprite);
   }
 
-  void drawPiece(sf::RenderWindow &window, std::string piece, float x, float y) {
+  void drawPiece(sf::RenderWindow &window, std::string piece, float x, float y, float scale=0.7f) {
     sf::Texture texture;
     std::string path = "assets/pieces/" + piece + ".png";
     if(!texture.loadFromFile(path.c_str())) {
       std::cerr << "Failed to open: " << path << "\n";
     }
     sf::Sprite sprite(texture);
-    sprite.setScale({0.7f, 0.7f});
+    sprite.setScale({scale, scale});
 
     sprite.setPosition({x, y});
     window.draw(sprite);
@@ -235,10 +258,17 @@ private:
   }
 
   void doGameMove(i2 curr_pos, i2 new_pos, int choose=-1) {
+    bool wasWhiteTurn = game.isWhiteTurn();
+
     game.doAction(curr_pos, new_pos, choose);
     engine.moveDone({{curr_pos, new_pos}, choose});
     move_counter = game.getTotalMoves();
     force_refresh = true;
+
+    std::cerr << "[GAME][MOVE] " << (move_counter - 1) << " (" << (wasWhiteTurn ? "white" : "black") << "): "
+               << squareName(curr_pos) << squareName(new_pos);
+    if(choose != -1) std::cerr << "=" << "qrnb"[choose];
+    std::cerr << "\n";
   }
 
   void handlePromotion(int button_id) {
@@ -280,33 +310,59 @@ private:
     }
   }
 
+  void logMoveExplanation(const MoveExplanation &explanation, int topN) {
+    std::cerr << "[GAME][EXPLAIN] top candidates:\n";
+    for(int i=0;i<topN && i<(int)explanation.candidates.size();i++) {
+      const auto &c = explanation.candidates[i];
+      std::cerr << "  " << (i+1) << ". " << squareName(c.move.first.first) << squareName(c.move.first.second)
+                 << " promo=" << c.move.second << "  score=" << c.score << "\n";
+    }
+    std::cerr << "[GAME][EXPLAIN] expected continuation:";
+    for(auto &m: explanation.principalVariation) {
+      std::cerr << " " << squareName(m.first.first) << squareName(m.first.second);
+    }
+    std::cerr << "\n";
+  }
+
   void botAction() {
     if(isPlayerTurn()) return;
     if(game.isCheckMate() || game.isDraw()) return;
 
-    i5 move = engine.getNextMove(DEEP_SIZE);
+    MoveExplanation explanation;
+    i5 move = engine.getNextMove(DEEP_SIZE, nullptr, &explanation);
     doGameMove(move.first.first, move.first.second, move.second);
 
     Profiler::getInstance().logAll();
     Profiler::getInstance().logMemory("after bot move");
     std::cerr << "[GAME][SCORE] " << game.getScore() << "\n";
+    logMoveExplanation(explanation, 5);
   }
 
 public:
   MatchPage() {}
 
-  MatchPage(int width, int height) {
+  MatchPage(int width, int height, int match_mode=3, int deep_size=6) {
     WIDTH = width;
     HEIGHT = height;
+    MATCH_MODE = match_mode;
+    DEEP_SIZE = deep_size;
     showPromotionSquare = false;
     move_counter = 0;
     createButtons();
+
+    // Logged once so a pasted [GAME][MOVE]/[GAME][EXPLAIN] transcript is
+    // self-contained -- reproducing a game needs the exact depth and seed,
+    // not just the move list.
+    std::cerr << "[GAME][CONFIG] depth=" << DEEP_SIZE << " match_mode=" << MATCH_MODE
+               << " seed=" << CHESS_RNG_SEED_USED << "\n";
   }
 
   void refresh(sf::RenderWindow &window) {
     /* Refresh the display */
     drawBoard(window);
+    drawCoordinates(window);
     drawPieces(window);
+    drawCapturedPieces(window);
     drawActionButtons(window);
     if(showPromotionSquare) drawPromotionOption(window);
 

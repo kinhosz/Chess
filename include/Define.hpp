@@ -95,4 +95,13 @@ inline std::string getPieceName(int piece) {
     return "";
 }
 
+// (file, row) -> algebraic square name, e.g. (4,6) -> "e2". row 0 is rank 8
+// (black's back rank), row 7 is rank 1 (white's back rank), matching how the
+// board is actually laid out (see Game::buildBoard).
+inline std::string squareName(i2 pos) {
+    char file = 'a' + pos.first;
+    char rank = '0' + (8 - pos.second);
+    return std::string(1, file) + std::string(1, rank);
+}
+
 #endif
