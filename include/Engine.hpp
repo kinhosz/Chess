@@ -23,12 +23,14 @@ int cmp(double a, double b) {
   return 1;
 }
 
+// std::sort requires a strict weak ordering; cmp()'s epsilon tolerance makes
+// "equality" non-transitive, so sorting must use plain comparisons here.
 bool max_cmp(std::pair<double, int> a, std::pair<double, int> b) {
-  return cmp(a.first, b.first) == 1;
+  return a.first > b.first;
 }
 
 bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
-  return cmp(a.first, b.first) == -1;
+  return a.first < b.first;
 }
 
 class EngineNode {
@@ -47,16 +49,16 @@ private:
     for(int i=0;i<moves.size();i++) {
       const auto &move = moves[i];
       if(game.isPawnPromotion(move.first, move.second)) {
-        for(int i=0;i<4;i++) {
-          lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, i)));
+        for(int p=0;p<4;p++) {
+          lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, p)));
+          sorted_ptr.push_back({0.0, (int)lines.size() - 1});
         }
       } else {
         lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1)));
+        sorted_ptr.push_back({0.0, (int)lines.size() - 1});
       }
-
-      sorted_ptr.push_back({0.0, i});
     }
-  
+
     std::shuffle(sorted_ptr.begin(), sorted_ptr.end(), rng);
     Profiler::getInstance().stop("EngineNode::createNextLines");
   }
@@ -205,9 +207,10 @@ public:
     root = std::make_unique<EngineNode>(move);
   }
 
-  i5 getNextMove(int deep_size) {
+  i5 getNextMove(int deep_size, int *nodes_out = nullptr) {
     int cnt = 0;
     auto ret = root->getNextMove(game, deep_size, cnt);
+    if(nodes_out) *nodes_out = cnt;
     return ret;
   }
 

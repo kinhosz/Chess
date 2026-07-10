@@ -756,19 +756,29 @@ bool Game::drawConditions(const GameState &gs) const {
 
   if(total_pieces > 2) isInsufficient = false;
   else if(total_pieces == 2) {
-    int whiteBishops = gs.pieces_counter[WB];
-    int blackBishops = gs.pieces_counter[BB];
+    // a rook/queen/pawn among the two remaining pieces is already enough to
+    // force mate on its own (see the total_pieces == 1 case below)
+    bool hasHeavyPiece = gs.pieces_counter[WR] || gs.pieces_counter[WQ] || gs.pieces_counter[WP]
+                       || gs.pieces_counter[BR] || gs.pieces_counter[BQ] || gs.pieces_counter[BP];
 
-    if(whiteBishops == 2) {
-      // sufficient only if the pair covers both square colors (forced mate exists)
-      isInsufficient = (gs.pieces_counter[WB_LIGHT] == 0 || gs.pieces_counter[WB_DARK] == 0);
-    } else if(blackBishops == 2) {
-      isInsufficient = (gs.pieces_counter[BB_LIGHT] == 0 || gs.pieces_counter[BB_DARK] == 0);
-    } else if(whiteBishops == 1 && blackBishops == 1) {
-      // one minor piece per side can never force mate, regardless of color
-      isInsufficient = true;
-    } else {
+    if(hasHeavyPiece) {
       isInsufficient = false;
+    } else {
+      int whiteBishops = gs.pieces_counter[WB];
+      int blackBishops = gs.pieces_counter[BB];
+
+      if(whiteBishops == 2) {
+        // sufficient only if the pair covers both square colors (forced mate exists)
+        isInsufficient = (gs.pieces_counter[WB_LIGHT] == 0 || gs.pieces_counter[WB_DARK] == 0);
+      } else if(blackBishops == 2) {
+        isInsufficient = (gs.pieces_counter[BB_LIGHT] == 0 || gs.pieces_counter[BB_DARK] == 0);
+      } else {
+        // any other split of the two minor pieces -- one per side, two
+        // knights on the same side, or knight+bishop on the same side --
+        // can't force mate against a lone king. This ignores the rare and
+        // hard-to-execute bishop+knight helpmate as an accepted simplification.
+        isInsufficient = true;
+      }
     }
   } else if(total_pieces == 1) {
     const std::vector<int> pos = {WR, WQ, WP, BR, BQ, BP};

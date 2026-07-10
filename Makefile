@@ -57,7 +57,31 @@ run-debug: debug
 	LD_LIBRARY_PATH=lib/SFML ./$(BIN)
 
 
+# =========================================
+# SELFPLAY: headless Engine harness (no SFML), see tools/selfplay.cpp
+# =========================================
+SELFPLAY_BIN := selfplay
+DEPTH ?= 5
+MOVES ?= 40
+
+SELFPLAY_SRC := tools/selfplay.cpp src/Game.cpp
+
+.PHONY: selfplay selfplay-debug run-selfplay run-selfplay-debug
+
+selfplay:
+	$(CXX) $(BASE_FLAGS) $(RELEASE_FLAGS) $(SELFPLAY_SRC) -o $(SELFPLAY_BIN)
+
+selfplay-debug:
+	$(CXX) $(BASE_FLAGS) $(DEBUG_FLAGS) $(SELFPLAY_SRC) -o $(SELFPLAY_BIN)
+
+run-selfplay: selfplay
+	./$(SELFPLAY_BIN) $(DEPTH) $(MOVES)
+
+run-selfplay-debug: selfplay-debug
+	./$(SELFPLAY_BIN) $(DEPTH) $(MOVES)
+
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN)
+	rm -rf $(OBJ_DIR) $(BIN) $(SELFPLAY_BIN)
 
 include scripts/dependencies/install.mk

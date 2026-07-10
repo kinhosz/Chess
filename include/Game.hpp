@@ -13,8 +13,6 @@ struct GameState {
   int castlingPreserved;
   int gameStatus;
   double piecesScoring;
-  int moves_white;
-  int moves_black;
   bool repetition;
   int castled;
   bool hasMoves;
@@ -37,8 +35,7 @@ struct GameState {
   }
 
   double scoringHeuristic() const {
-    double sc = (moves_white - moves_black) / sqrt(moves_white + moves_black + 1.0); // moves
-    sc /= 10.0;
+    double sc = 0.0;
 
     double castling_bonus = 1.5;
 

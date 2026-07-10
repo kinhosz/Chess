@@ -2,4 +2,5 @@
 lib/
 obj/
 chess
+selfplay
 include/SFML
