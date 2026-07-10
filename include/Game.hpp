@@ -50,6 +50,11 @@ struct GameState {
 };
 
 class Game {
+  // Test-only seam: lets tests/position_builder.hpp drop arbitrary positions
+  // onto the board (endgames, stalemates) without needing a 20+ move legal
+  // sequence to reach them. No production code uses this.
+  friend struct TestPositionBuilder;
+
 private:
   std::vector<GameState> gameState;
   std::vector<std::vector<int>> board;

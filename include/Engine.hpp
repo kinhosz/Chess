@@ -34,6 +34,11 @@ bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
 }
 
 class EngineNode {
+  // Test-only seam: lets tests/engine_test_access.hpp inspect lines/sorted_ptr
+  // directly (e.g. to check they stay index-aligned through createNextLines).
+  // No production code uses this.
+  friend struct TestEngineAccess;
+
 private:
   double score;
   int next_line;

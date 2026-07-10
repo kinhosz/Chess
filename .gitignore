@@ -3,4 +3,5 @@ lib/
 obj/
 chess
 selfplay
+run_tests
 include/SFML

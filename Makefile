@@ -81,7 +81,21 @@ run-selfplay-debug: selfplay-debug
 	./$(SELFPLAY_BIN) $(DEPTH) $(MOVES)
 
 
+
+# =========================================
+# TESTS: see tests/
+# =========================================
+TEST_BIN := run_tests
+TEST_SRC := $(wildcard tests/*.cpp) src/Game.cpp
+
+.PHONY: test
+
+test:
+	$(CXX) $(BASE_FLAGS) $(DEBUG_FLAGS) -Itests $(TEST_SRC) -o $(TEST_BIN)
+	./$(TEST_BIN)
+
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN) $(SELFPLAY_BIN)
+	rm -rf $(OBJ_DIR) $(BIN) $(SELFPLAY_BIN) $(TEST_BIN)
 
 include scripts/dependencies/install.mk
