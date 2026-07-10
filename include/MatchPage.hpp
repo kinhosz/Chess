@@ -56,7 +56,7 @@ private:
 
   int MATCH_MODE = 3;
   Engine engine;
-  int DEEP_SIZE = 5;
+  int DEEP_SIZE = 7;
 
   bool force_refresh = false;
 
@@ -120,7 +120,7 @@ private:
     sf::Text text(font);
     text.setString(msg);
     text.setCharacterSize(24);
-    text.setFillColor(sf::Color::Black);
+    text.setFillColor(sf::Color(225, 225, 230));
     text.setStyle(sf::Text::Bold);
     text.setPosition({50 , 10});
     window.draw(text);
@@ -128,13 +128,13 @@ private:
 
   void drawBoard(sf::RenderWindow &window) {
     sf::RectangleShape rect({WIDTH, HEIGHT});
-    rect.setFillColor(sf::Color(255, 255, 255));
+    rect.setFillColor(sf::Color(24, 26, 33));
     rect.setPosition({0, 0});
     window.draw(rect);
 
     for(int i=0;i<8;i++) {
       for(int j=0;j<8;j++) {
-        sf::Color c(255, 255, 255);
+        sf::Color c(214, 200, 170);
         if((i + j)%2 == 1) c = sf::Color(0, 150, 0);
         window.draw(createSquare(buttons[i * 8 + j].x0, buttons[i * 8 + j].y0, c));
       }
@@ -288,6 +288,7 @@ private:
     doGameMove(move.first.first, move.first.second, move.second);
 
     Profiler::getInstance().logAll();
+    Profiler::getInstance().logMemory("after bot move");
     std::cerr << "[GAME][SCORE] " << game.getScore() << "\n";
   }
 

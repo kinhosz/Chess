@@ -185,7 +185,11 @@ public:
       }
     }
 
-    assert(next_line != -1);
+    // lines[i] for i != next_line will not be used and must be cleaned to save memory
+    std::swap(lines[next_line], lines[0]);
+    lines.resize(1);
+    sorted_ptr.clear();
+    next_line = 0;
   }
 };
 

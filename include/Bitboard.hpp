@@ -386,7 +386,6 @@ private:
     }
 
     void preprocess() {
-        freopen("log.txt", "w", stdout);
         computeBishopMoves();
         computeTowerFileMoves();
         computeTowerRankMoves();

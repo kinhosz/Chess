@@ -6,9 +6,44 @@
 #include <unordered_map>
 #include <chrono>
 #include <iomanip>
+#include <fstream>
+#include <sstream>
 
 class Profiler {
 public:
+    // Formats kB as MB, or as GB (colored orange/red as a warning) once it crosses 1024 MB.
+    std::string formatMemory(long kb) {
+        double mb = kb / 1024.0;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(1);
+
+        if (mb >= 1024.0) {
+            double gb = mb / 1024.0;
+            const char* color = (gb >= 4.0) ? "\033[1;31m" : "\033[1;33m"; // red : orange
+            oss << color << gb << " GB" << "\033[0m";
+        } else {
+            oss << mb << " MB";
+        }
+
+        return oss.str();
+    }
+
+    // Reads current/peak resident memory (RAM actually in use) from the kernel.
+    void logMemory(const std::string& label = "") {
+        std::ifstream status_file("/proc/self/status");
+        std::string line;
+        long vm_rss_kb = -1, vm_hwm_kb = -1;
+
+        while (std::getline(status_file, line)) {
+            if (line.rfind("VmRSS:", 0) == 0) vm_rss_kb = std::stol(line.substr(6));
+            else if (line.rfind("VmHWM:", 0) == 0) vm_hwm_kb = std::stol(line.substr(6));
+        }
+
+        std::cerr << "[MEMORY]" << (label.empty() ? "" : " " + label)
+                   << " current: " << formatMemory(vm_rss_kb)
+                   << " | peak: " << formatMemory(vm_hwm_kb) << "\n";
+    }
+
     static Profiler& getInstance() {
         static Profiler instance;
         return instance;
