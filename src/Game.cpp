@@ -519,6 +519,57 @@ bool Game::isOnCheck() {
   return ret;
 }
 
+// Same reverse-ray-casting trick as isOnCheck() (compute the attack pattern
+// as if a piece of each type stood on `pos`, then check whether an actual
+// attacker of that type/color occupies one of those squares), generalized
+// to an arbitrary square and color instead of being hardcoded to the king
+// in check.
+bool Game::isAttackedBy(i2 pos, int attackerColor) const {
+  int x = pos.first, y = pos.second;
+  int cell = bitboard.grid2bit(x, y);
+
+  if(attackerColor == 0) { // white pawns attack from one rank below (higher row index)
+    if(getPositionInfo(x-1, y+1) == WP || getPositionInfo(x+1, y+1) == WP) return true;
+  } else { // black pawns attack from one rank above (lower row index)
+    if(getPositionInfo(x-1, y-1) == BP || getPositionInfo(x+1, y-1) == BP) return true;
+  }
+
+  if(bitboard.knight(cell) & knight_mask[attackerColor]) return true;
+  if(bitboard.king(cell) & king_mask[attackerColor]) return true;
+  if(bitboard.bishop(cell, board_mask) & bishop_mask[attackerColor]) return true;
+  if(bitboard.rook(cell, board_mask) & rook_mask[attackerColor]) return true;
+
+  return false;
+}
+
+// Static "hanging piece" penalty: any piece that's attacked by the enemy
+// and has no defender of its own color loses its full value from whichever
+// side owns it -- this is what a fixed-depth search on its own can miss at
+// the horizon (e.g. a piece sacrificed on the search's last ply, with the
+// recapture sitting one ply beyond it, gets evaluated as if the sac were
+// free). Deliberately simple: it doesn't weigh attacker vs defender value
+// (an actually-defended piece is treated as fully safe), trading precision
+// for being O(64) with no recursion.
+double Game::hangingPiecesScore() const {
+  double sc = 0.0;
+
+  for(int x=0;x<8;x++) {
+    for(int y=0;y<8;y++) {
+      int piece = board[x][y];
+      if(piece == EMPTY) continue;
+
+      int color = getColor(piece);
+      int opponent = 1 - color;
+      if(!isAttackedBy({x, y}, opponent)) continue;
+      if(isAttackedBy({x, y}, color)) continue; // defended: treated as safe
+
+      sc -= evaluatePiece(piece); // signed value handles white/black direction
+    }
+  }
+
+  return sc;
+}
+
 bool Game::isValidMove(i2 curr_pos, i2 new_pos) {
   int current_pos_before = getPositionInfo(curr_pos.first, curr_pos.second);
   int new_pos_before = getPositionInfo(new_pos.first, new_pos.second);
@@ -902,7 +953,7 @@ double Game::getScore() const {
     else return 1000.0;
   }
 
-  return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring();
+  return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring() + hangingPiecesScore();
 }
 
 double Game::getCellScore(int x, int y) const {

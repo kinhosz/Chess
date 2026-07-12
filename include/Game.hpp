@@ -94,6 +94,8 @@ private:
   bool drawConditions(const GameState &gs) const;
   void executeMove(vi3 &move, GameState &gs);
   double evaluatePiece(int piece) const;
+  bool isAttackedBy(i2 pos, int attackerColor) const;
+  double hangingPiecesScore() const;
 
   vi4 getMovesForPawn(i2 current_pos);
   vi4 getMovesForRook(i2 current_pos);

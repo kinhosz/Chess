@@ -77,6 +77,18 @@ private:
   std::vector<std::unique_ptr<EngineNode>> lines;
   std::vector<std::pair<double, int>> sorted_ptr;
 
+  // singleMoveScore evaluates the last level moves - only used
+  // for sort them to get the cut faster in Alpha-beta
+  double singleMoveScore(i4 move, int promotion, Game& game) {
+    double promotion_score[] = {0.0, 9.0, 5.0, 3.0, 3.0};
+    promotion++;
+  
+    double attacker = std::abs(game.getCellScore(move.first.first, move.first.second));
+    double defender = std::abs(game.getCellScore(move.second.first, move.second.second));
+  
+    return (defender * 10.0) - attacker + (promotion_score[promotion] * 10.0);
+  }
+
   void createNextLines(Game& game) {
     Profiler::getInstance().start("EngineNode::createNextLines");
     const auto& moves = game.genNextMoves();
@@ -88,15 +100,15 @@ private:
       if(game.isPawnPromotion(move.first, move.second)) {
         for(int p=0;p<4;p++) {
           lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, p)));
-          sorted_ptr.push_back({0.0, (int)lines.size() - 1});
+          sorted_ptr.push_back({singleMoveScore(move, p, game), (int)lines.size() - 1});
         }
       } else {
         lines.push_back(std::make_unique<EngineNode>(std::make_pair(move, -1)));
-        sorted_ptr.push_back({0.0, (int)lines.size() - 1});
+        sorted_ptr.push_back({singleMoveScore(move, -1, game), (int)lines.size() - 1});
       }
     }
 
-    std::shuffle(sorted_ptr.begin(), sorted_ptr.end(), rng);
+    std::sort(sorted_ptr.begin(), sorted_ptr.end(), max_cmp);
     Profiler::getInstance().stop("EngineNode::createNextLines");
   }
 
