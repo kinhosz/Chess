@@ -146,8 +146,14 @@ public:
     score = game.getScore();
     lastBestChild = -1; // no children explored yet this call; leaves stay -1
 
+    // fast mate
+    if(game.isCheckMate()) {
+      score += (score > 0 ? deep : -deep);
+      Profiler::getInstance().stop("EngineNode::explore");
+      return score;
+    }
     if(deep <= 0) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
-    if(game.isDraw() || game.isCheckMate()) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
+    if(game.isDraw()) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
     if(isLinesMissing(game)) createNextLines(game);
 
     bool whiteTurn = game.isWhiteTurn();
@@ -312,7 +318,12 @@ public:
 
   i5 getNextMove(int deep_size, int *nodes_out = nullptr, MoveExplanation *explain_out = nullptr) {
     int cnt = 0;
-    auto ret = root->getNextMove(game, deep_size, cnt, explain_out);
+    i5 ret;
+
+    // Iterative deepening
+    for(int d=1;d<=deep_size;d++) {
+      ret = root->getNextMove(game, d, cnt, explain_out);
+    }
     if(nodes_out) *nodes_out = cnt;
     return ret;
   }
