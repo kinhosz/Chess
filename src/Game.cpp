@@ -10,7 +10,7 @@ Game::Game() {
   gs.gameStatus = ALIVE;
   gs.enPassant = {-1, -1};
   gs.castlingPreserved = 0;
-  gs.piecesScoring = 0.0;
+  gs.piecesScoring = 0;
   gs.repetition = false;
   gs.pieces_counter.resize(24, 0);
   gs.castled = 0;
@@ -543,8 +543,8 @@ bool Game::isAttackedBy(i2 pos, int attackerColor) const {
 // free). Deliberately simple: it doesn't weigh attacker vs defender value
 // (an actually-defended piece is treated as fully safe), trading precision
 // for being O(64) with no recursion.
-double Game::hangingPiecesScore() const {
-  double sc = 0.0;
+Score Game::hangingPiecesScore() const {
+  Score sc = 0;
 
   for(int x=0;x<8;x++) {
     for(int y=0;y<8;y++) {
@@ -598,24 +598,24 @@ vi4 Game::genNextMoves() {
   return nextMoves;
 }
 
-double Game::evaluatePiece(int piece) const {
-  if(piece == EMPTY) return 0.0;
-  int mult = (isWhite(piece) ? 1.0 : -1.0);
+Score Game::evaluatePiece(int piece) const {
+  if(piece == EMPTY) return 0;
+  int mult = (isWhite(piece) ? 1 : -1);
 
-  double value = 0.0;
+  Score value = 0;
 
-  if(isRook(piece)) value = 5.0;
-  else if(isKnight(piece)) value = 3.0;
-  else if(isBishop(piece)) value = 3.0;
-  else if(isQueen(piece)) value = 9.0;
-  else if(isPawn(piece)) value = 1.0;
+  if(isRook(piece)) value = PIECE_VALUE_ROOK;
+  else if(isKnight(piece)) value = PIECE_VALUE_KNIGHT;
+  else if(isBishop(piece)) value = PIECE_VALUE_BISHOP;
+  else if(isQueen(piece)) value = PIECE_VALUE_QUEEN;
+  else if(isPawn(piece)) value = PIECE_VALUE_PAWN;
 
   return mult * value;
 }
 
 void Game::executeMove(vi3 &move, GameState &gs) {
   vi3 rollback;
-  double score = 0.0;
+  Score score = 0;
 
   for(auto &m: move) {
     int curr_piece = getPositionInfo(m.first.first, m.first.second);
@@ -857,116 +857,108 @@ int Game::getTotalMoves() const {
   return moves.size();
 }
 
-double Game::positionalScoring() const {
-  double sc = 0.0;
-  double signal = 1.0;
-  double bonus_factor = 0.1;
+Score Game::positionalScoring() const {
+  Score sc = 0;
+  int signal = 1;
 
   // Bishop
   for(uint64_t mask: bishop_mask) {
     uint64_t bmask = mask;
-    double bishop_score = 3.0;
-    double bishop_reducer = 8+7;
 
     while(bmask) {
       uint64_t active_bit = (bmask & -bmask);
-      double free_positions = __builtin_popcountll(
+      int free_positions = __builtin_popcountll(
         bitboard.bishop(
           63 - __builtin_clzll(active_bit),
           board_mask
         )
       );
 
-      sc += (signal * (free_positions/bishop_reducer) * bishop_score) * bonus_factor;
+      sc += signal * free_positions * BISHOP_MOBILITY_UNIT;
       bmask ^= active_bit;
     }
-    signal *= -1.0;
+    signal *= -1;
   }
 
   // Rook
-  signal = 1.0;
+  signal = 1;
   for(uint64_t mask: rook_mask) {
     uint64_t bmask = mask;
-    double rook_score = 5.0;
-    double rook_reducer = 8+8;
 
     while(bmask) {
       uint64_t active_bit = (bmask & -bmask);
-      double free_positions = __builtin_popcountll(
+      int free_positions = __builtin_popcountll(
         bitboard.rook(
           63 - __builtin_clzll(active_bit),
           board_mask
         )
       );
 
-      sc += (signal * (free_positions/rook_reducer) * rook_score) * bonus_factor;
+      sc += signal * free_positions * ROOK_MOBILITY_UNIT;
       bmask ^= active_bit;
     }
-    signal *= -1.0;
+    signal *= -1;
   }
 
   // Knight
-  signal = 1.0;
+  signal = 1;
   for(uint64_t mask: knight_mask) {
     uint64_t bmask = mask;
-    double knight_score = 3.0;
-    double knight_reducer = 8;
 
     while(bmask) {
       uint64_t active_bit = (bmask & -bmask);
-      double free_positions = __builtin_popcountll(
+      int free_positions = __builtin_popcountll(
         bitboard.knight(
           63 - __builtin_clzll(active_bit)
         )
       );
 
-      sc += (signal * (free_positions/knight_reducer) * knight_score) * bonus_factor;
+      sc += signal * free_positions * KNIGHT_MOBILITY_UNIT;
       bmask ^= active_bit;
     }
-    signal *= -1.0;
+    signal *= -1;
   }
 
   // Pawn Structure - White
   uint64_t bmask = pawn_mask[0];
   uint64_t defensor_mask = (bmask&(~FILEA))<<7;
   defensor_mask |= (bmask&(~FILEH))<<9;
-  sc += __builtin_popcountll(defensor_mask) * bonus_factor;
+  sc += __builtin_popcountll(defensor_mask) * PAWN_STRUCTURE_UNIT;
 
   // Pawn Structure - Black
   bmask = pawn_mask[1];
   defensor_mask = (bmask&(~FILEH))>>7;
   defensor_mask |= (bmask&(~FILEA))>>9;
-  sc -= __builtin_popcountll(defensor_mask) * bonus_factor;
+  sc -= __builtin_popcountll(defensor_mask) * PAWN_STRUCTURE_UNIT;
 
   uint64_t rank_mask = RANK1<<8;
-  double bonus_id = 0;
+  int bonus_id = 0;
   while((rank_mask&RANK8) == 0) {
     uint64_t wp_mask = pawn_mask[0];
     uint64_t bp_mask = pawn_mask[1];
 
-    sc += __builtin_popcountll(wp_mask&rank_mask) * bonus_factor * bonus_id;
-    sc -= __builtin_popcountll(bp_mask&rank_mask) * bonus_factor * (5.0 - bonus_id);
+    sc += __builtin_popcountll(wp_mask&rank_mask) * PAWN_STRUCTURE_UNIT * bonus_id;
+    sc -= __builtin_popcountll(bp_mask&rank_mask) * PAWN_STRUCTURE_UNIT * (5 - bonus_id);
 
     rank_mask <<= 8;
-    bonus_id += 1.0;
+    bonus_id += 1;
   }
 
   return sc;
 }
 
-double Game::getScore() const {
+Score Game::getScore() const {
   const GameState &gs = getState();
 
-  if(gs.gameStatus == DRAW) return 0.0;
+  if(gs.gameStatus == DRAW) return 0;
   else if(gs.gameStatus == CHECKMATE) {
-    if(isWhiteTurn()) return -1000.0;
-    else return 1000.0;
+    return isWhiteTurn() ? -CHECKMATE_SCORE : CHECKMATE_SCORE;
   }
 
   return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring() + hangingPiecesScore();
 }
 
-double Game::getCellScore(int x, int y) const {
+Score Game::getCellScore(int x, int y) const {
   int info = getPositionInfo(x, y);
   assert(info != OUT);
 

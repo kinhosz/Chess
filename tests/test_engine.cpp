@@ -12,19 +12,20 @@
 // just running the engine (verified: reintroducing the bug still passed 5/5
 // engine-search runs below). This checks the comparator's contract directly.
 TEST(sort_comparators_are_a_strict_weak_ordering) {
-  CHECK(!max_cmp({1.0,0},{1.0,0}));   // irreflexive
-  CHECK(!min_cmp({1.0,0},{1.0,0}));
+  CHECK(!max_cmp({1,0},{1,0}));   // irreflexive
+  CHECK(!min_cmp({1,0},{1,0}));
 
-  CHECK(max_cmp({2.0,0},{1.0,0}));    // agrees with plain > / <
-  CHECK(!max_cmp({1.0,0},{2.0,0}));
-  CHECK(min_cmp({1.0,0},{2.0,0}));
-  CHECK(!min_cmp({2.0,0},{1.0,0}));
+  CHECK(max_cmp({2,0},{1,0}));    // agrees with plain > / <
+  CHECK(!max_cmp({1,0},{2,0}));
+  CHECK(min_cmp({1,0},{2,0}));
+  CHECK(!min_cmp({2,0},{1,0}));
 
-  // Values within cmp()'s old epsilon (1e-4) must still compare strictly --
-  // an epsilon-based comparator would call these "equal" and violate the
-  // transitivity std::sort's introsort relies on to stay in bounds.
-  CHECK(max_cmp({1.00005,0},{1.0,0}));
-  CHECK(min_cmp({1.0,0},{1.00005,0}));
+  // The old double-based cmp() had an epsilon (1e-4) that could call two
+  // distinct-but-close values "equal", breaking the transitivity std::sort's
+  // introsort relies on -- that's what caused the real heap-buffer-overflow
+  // referenced above. With Score now an exact integer, there's no such thing
+  // as "distinct but within epsilon": any two different ints always compare
+  // strictly, so that failure mode has no analogue to test here anymore.
 }
 
 // createNextLines() used to push 4 entries into `lines` for a promotion move

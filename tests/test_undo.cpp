@@ -17,14 +17,14 @@ TEST(undo_restores_board_and_turn) {
 
 TEST(undo_restores_score) {
   Game g;
-  double scoreBefore = g.getScore();
+  Score scoreBefore = g.getScore();
 
   g.doAction({4,6},{4,4});
   g.doAction({4,1},{4,3});
   g.undoAction();
   g.undoAction();
 
-  CHECK_NEAR(g.getScore(), scoreBefore, 1e-9);
+  CHECK_EQ(g.getScore(), scoreBefore);
 }
 
 TEST(undo_restores_a_captured_piece) {

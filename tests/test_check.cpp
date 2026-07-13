@@ -11,7 +11,7 @@ TEST(fools_mate) {
 
   CHECK(g.isCheckMate());
   CHECK(!g.isDraw());
-  CHECK_NEAR(g.getScore(), -1000.0, 1e-9); // white to move, white is mated
+  CHECK_EQ(g.getScore(), -CHECKMATE_SCORE); // white to move, white is mated
 }
 
 TEST(back_rank_mate) {
@@ -27,7 +27,7 @@ TEST(back_rank_mate) {
   g.doAction({0,1},{0,0}); // Ra7-a8+
 
   CHECK(g.isCheckMate());
-  CHECK_NEAR(g.getScore(), 1000.0, 1e-9); // black to move, black is mated
+  CHECK_EQ(g.getScore(), CHECKMATE_SCORE); // black to move, black is mated
 }
 
 TEST(pinned_piece_cannot_move_off_the_pin_line) {

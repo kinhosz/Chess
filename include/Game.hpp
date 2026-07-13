@@ -9,11 +9,38 @@
 #include <math.h>
 #include <Define.hpp>
 
+// Every fractional constant the evaluation ever used (bonus_factor=0.1,
+// mobility divisors 15/16/8, castling_bonus=1.5) is folded into this single
+// scale, chosen as lcm(50,32,80,10,4) -- the smallest factor that turns every
+// one of those fractions into a whole number, so all scoring is exact
+// integer arithmetic (no runtime division, no truncation-before-multiply).
+constexpr int EVAL_SCALE = 800;
+
+constexpr Score PIECE_VALUE_PAWN   = 1 * EVAL_SCALE;
+constexpr Score PIECE_VALUE_KNIGHT = 3 * EVAL_SCALE;
+constexpr Score PIECE_VALUE_BISHOP = 3 * EVAL_SCALE;
+constexpr Score PIECE_VALUE_ROOK   = 5 * EVAL_SCALE;
+constexpr Score PIECE_VALUE_QUEEN  = 9 * EVAL_SCALE;
+
+// Mobility bonus per free square, e.g. bishop: 3 * 0.1 * EVAL_SCALE / 15 = 16
+// exactly (same derivation for rook/knight with their own divisor).
+constexpr Score BISHOP_MOBILITY_UNIT = 16;
+constexpr Score ROOK_MOBILITY_UNIT   = 25;
+constexpr Score KNIGHT_MOBILITY_UNIT = 30;
+// Pawn-structure defender bonus and per-rank advancement bonus, both were
+// `* 0.1` in the old formula: 0.1 * EVAL_SCALE = 80.
+constexpr Score PAWN_STRUCTURE_UNIT = 80;
+
+constexpr Score CASTLING_BONUS      = 1200; // 1.5  * EVAL_SCALE
+constexpr Score CASTLING_HALF_BONUS = 600;  // 0.75 * EVAL_SCALE
+
+constexpr Score CHECKMATE_SCORE = 1000 * EVAL_SCALE;
+
 struct GameState {
   i2 enPassant;
   int castlingPreserved;
   int gameStatus;
-  double piecesScoring;
+  Score piecesScoring;
   bool repetition;
   int castled;
   bool hasMoves;
@@ -36,16 +63,14 @@ struct GameState {
     castled |= (1<<side);
   }
 
-  double scoringHeuristic() const {
-    double sc = 0.0;
+  Score scoringHeuristic() const {
+    Score sc = 0;
 
-    double castling_bonus = 1.5;
+    if(castled&1) sc += CASTLING_BONUS; // bonus - white castling
+    else if((castlingPreserved&3) == 0) sc += CASTLING_HALF_BONUS;
 
-    if(castled&1) sc += castling_bonus; // bonus - white castling
-    else if((castlingPreserved&3) == 0) sc += castling_bonus / 2.0;
-
-    if(castled&2) sc -= castling_bonus; // bonus - black castling
-    else if((castlingPreserved&12) == 0) sc -= castling_bonus / 2.0;
+    if(castled&2) sc -= CASTLING_BONUS; // bonus - black castling
+    else if((castlingPreserved&12) == 0) sc -= CASTLING_HALF_BONUS;
 
     return sc;
   }
@@ -94,9 +119,9 @@ private:
   i2 getKingPos(bool white);
   bool drawConditions(const GameState &gs) const;
   void executeMove(vi3 &move, GameState &gs);
-  double evaluatePiece(int piece) const;
+  Score evaluatePiece(int piece) const;
   bool isAttackedBy(i2 pos, int attackerColor) const;
-  double hangingPiecesScore() const;
+  Score hangingPiecesScore() const;
 
   vi4 getMovesForPawn(i2 current_pos);
   vi4 getMovesForRook(i2 current_pos);
@@ -107,7 +132,7 @@ private:
   vi4 getMovesFor(i2 pos);
   bool hasAnyMove();
 
-  double positionalScoring() const;
+  Score positionalScoring() const;
 
 public:
   Game();
@@ -124,8 +149,8 @@ public:
   bool isAvailable(i2 curr_pos, i2 new_pos);
   int getTotalMoves() const;
   vi4 genNextMoves();
-  double getScore() const;
-  double getCellScore(int x, int y) const;
+  Score getScore() const;
+  Score getCellScore(int x, int y) const;
 
   // Debugger;
   void debugger();

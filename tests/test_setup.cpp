@@ -17,7 +17,7 @@ TEST(initial_position_has_twenty_legal_moves) {
 
 TEST(initial_position_score_is_symmetric) {
   Game g;
-  CHECK_NEAR(g.getScore(), 0.0, 1e-9);
+  CHECK_EQ(g.getScore(), 0);
 }
 
 TEST(initial_position_back_rank_pieces_are_boxed_in) {

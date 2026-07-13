@@ -30,7 +30,7 @@ struct TestPositionBuilder {
     gs.gameStatus = ALIVE;
     gs.enPassant = {-1, -1};
     gs.castlingPreserved = 0b1111; // no castling rights in constructed positions
-    gs.piecesScoring = 0.0;
+    gs.piecesScoring = 0;
     gs.repetition = false;
     gs.pieces_counter.resize(24, 0);
     gs.castled = 0;

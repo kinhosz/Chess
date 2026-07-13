@@ -11,6 +11,11 @@ typedef std::pair<i2, int> i3;
 typedef std::pair<i2, i2> i4;
 typedef std::pair<i4, int> i5;
 
+// Type used for evaluation scores throughout Game/Engine (piece values,
+// positional bonuses, alpha-beta bounds, ...). Single point of truth if the
+// width ever needs to change.
+typedef int Score;
+
 typedef std::vector<i2> vi2;
 typedef std::vector<i3> vi3;
 typedef std::vector<i4> vi4;

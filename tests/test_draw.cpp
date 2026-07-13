@@ -45,7 +45,7 @@ TEST(knight_vs_bishop_is_a_draw) {
   Game g;
   TestPositionBuilder::setup(g, {{4,4,WK},{2,2,WN},{4,0,BK},{6,3,BB}}, true);
   CHECK(g.isDraw());
-  CHECK_NEAR(g.getScore(), 0.0, 1e-9);
+  CHECK_EQ(g.getScore(), 0);
 }
 
 TEST(knight_vs_knight_is_a_draw) {
@@ -108,5 +108,5 @@ TEST(threefold_repetition_is_a_draw) {
   }
 
   CHECK(g.isDraw());
-  CHECK_NEAR(g.getScore(), 0.0, 1e-9);
+  CHECK_EQ(g.getScore(), 0);
 }

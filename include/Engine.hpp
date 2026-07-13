@@ -30,23 +30,25 @@ inline unsigned long chessRngSeed() {
 unsigned long CHESS_RNG_SEED_USED = chessRngSeed();
 std::mt19937 rng(CHESS_RNG_SEED_USED);
 
-double INF = 1e8;
+constexpr Score INF = 1000000000;
 
-int cmp(double a, double b) {
-  double eps = 0.0001;
-
-  if(std::abs(a - b) < eps) return 0;
+// Plain comparison, no epsilon: scores are exact integers now, so there's no
+// floating-point rounding noise to tolerate (that noise is what the old
+// epsilon existed for). No subtraction either, so this stays overflow-safe
+// no matter how large a/b get (e.g. when either is ±INF).
+int cmp(Score a, Score b) {
   if(a < b) return -1;
-  return 1;
+  if(a > b) return 1;
+  return 0;
 }
 
-// std::sort requires a strict weak ordering; cmp()'s epsilon tolerance makes
-// "equality" non-transitive, so sorting must use plain comparisons here.
-bool max_cmp(std::pair<double, int> a, std::pair<double, int> b) {
+// std::sort requires a strict weak ordering; cmp()'s old epsilon tolerance
+// made "equality" non-transitive, so sorting must use plain comparisons here.
+bool max_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
   return a.first > b.first;
 }
 
-bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
+bool min_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
   return a.first < b.first;
 }
 
@@ -54,7 +56,7 @@ bool min_cmp(std::pair<double, int> a, std::pair<double, int> b) {
 // move was picked over the alternatives.
 struct MoveCandidate {
   i5 move;
-  double score;
+  Score score;
 };
 
 // Optional output of Engine::getNextMove(): the ranked root candidates plus
@@ -72,21 +74,25 @@ class EngineNode {
   friend struct TestEngineAccess;
 
 private:
-  double score;
+  Score score;
   int next_line;
   std::vector<std::unique_ptr<EngineNode>> lines;
-  std::vector<std::pair<double, int>> sorted_ptr;
+  std::vector<std::pair<Score, int>> sorted_ptr;
 
   // singleMoveScore evaluates the last level moves - only used
   // for sort them to get the cut faster in Alpha-beta
-  double singleMoveScore(i4 move, int promotion, Game& game) {
-    double promotion_score[] = {0.0, 9.0, 5.0, 3.0, 3.0};
+  Score singleMoveScore(i4 move, int promotion, Game& game) {
+    // Pre-scaled by EVAL_SCALE (see Game.hpp) to match getCellScore()'s
+    // scale -- an inconsistent scale here would silently corrupt move
+    // ordering (the promotion bonus would lose almost all its weight
+    // relative to attacker/defender) with no error.
+    Score promotion_score[] = {0, PIECE_VALUE_QUEEN, PIECE_VALUE_ROOK, PIECE_VALUE_KNIGHT, PIECE_VALUE_BISHOP};
     promotion++;
-  
-    double attacker = std::abs(game.getCellScore(move.first.first, move.first.second));
-    double defender = std::abs(game.getCellScore(move.second.first, move.second.second));
-  
-    return (defender * 10.0) - attacker + (promotion_score[promotion] * 10.0);
+
+    Score attacker = std::abs(game.getCellScore(move.first.first, move.first.second));
+    Score defender = std::abs(game.getCellScore(move.second.first, move.second.second));
+
+    return (defender * 10) - attacker + (promotion_score[promotion] * 10);
   }
 
   void createNextLines(Game& game) {
@@ -122,15 +128,15 @@ public:
 
   EngineNode(i5 move) {
     this->move = move;
-    score = 0.0;
+    score = 0;
     next_line = -1;
   }
 
-  void setScore(double sc) {
+  void setScore(Score sc) {
     score = sc;
   }
 
-  double getScore() const {
+  Score getScore() const {
     return score;
   }
 
@@ -140,7 +146,7 @@ public:
   // on the other siblings (see the comment above bestChild below).
   int lastBestChild = -1;
 
-  double explore(Game& game, int deep, double alpha, double beta, int &cnt) {
+  Score explore(Game& game, int deep, Score alpha, Score beta, int &cnt) {
     Profiler::getInstance().start("EngineNode::explore");
     cnt++;
     score = game.getScore();
@@ -176,7 +182,7 @@ public:
 
       game.doAction(line->move.first.first, line->move.first.second, line->move.second);
 
-      double sc = line->explore(game, deep-1, alpha, beta, cnt);
+      Score sc = line->explore(game, deep-1, alpha, beta, cnt);
 
 
       sorted_ptr[i].first = sc;
@@ -240,8 +246,8 @@ public:
       return ret;
     }
 
-    double alpha = -INF;
-    double beta = INF;
+    Score alpha = -INF;
+    Score beta = INF;
     score = explore(game, deep, alpha, beta, cnt);
 
     // lastBestChild (set by explore() above) is the one child proven to
