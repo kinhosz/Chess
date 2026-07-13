@@ -4,6 +4,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <cstdint>
 #include <assert.h>
 #include <math.h>
 #include <Define.hpp>
@@ -16,6 +17,7 @@ struct GameState {
   bool repetition;
   int castled;
   bool hasMoves;
+  uint64_t zobristHash;
 
   std::vector<int> pieces_counter;
 
@@ -58,7 +60,7 @@ class Game {
 private:
   std::vector<GameState> gameState;
   std::vector<std::vector<int>> board;
-  std::map<std::string, int> hashedBoardCounter;
+  std::map<uint64_t, int> hashedBoardCounter;
   std::vector<vi3> moves;
 
   // Bitboard
@@ -85,8 +87,7 @@ private:
   void popState();
 
   void buildBoard();
-  std::string getBoardHash();
-  int storeHashedBoard();
+  int storeHashedBoard(uint64_t hash);
   int getPositionInfo(int x, int y) const;
   bool isValidMove(i2 curr_pos, i2 new_pos);
   bool isOnCheck();

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <iomanip>
 #include <Bitboard.hpp>
+#include <Zobrist.hpp>
 #include <Profiler.hpp>
 
 Game::Game() {
@@ -41,6 +42,9 @@ Game::Game() {
       else if(id == BB) gs.pieces_counter[(i%2 + j%2)%2 == 0 ? BB_LIGHT : BB_DARK]++;
     }
   }
+
+  gs.zobristHash = ZOBRIST.compute(board, gs.castlingPreserved, gs.enPassant, isWhiteTurn());
+  storeHashedBoard(gs.zobristHash);
 
   addState(gs);
 }
@@ -189,22 +193,12 @@ std::vector<std::vector<int>> Game::getBoard(int move_id) {
   return tmp;
 }
 
-std::string Game::getBoardHash() {
-  std::string hsh = "";
-  for(int i=0;i<8;i++) {
-    for(int j=0;j<8;j++) {
-      if(board[i][j] == EMPTY) hsh += "/x";
-      else hsh += "/" + std::to_string(board[i][j]);
-    }
-  }
-
-  return hsh;
-}
-
-int Game::storeHashedBoard() {
-  const std::string &hsh = getBoardHash();
-  hashedBoardCounter[hsh]++;
-  return hashedBoardCounter[hsh];
+int Game::storeHashedBoard(uint64_t hash) {
+  Profiler::getInstance().start("Game.storeHashedBoard()");
+  hashedBoardCounter[hash]++;
+  int x = hashedBoardCounter[hash];
+  Profiler::getInstance().stop("Game.storeHashedBoard()");
+  return x;
 }
 
 vi4 Game::getMovesForPawn(i2 current_pos) {
@@ -471,7 +465,6 @@ void Game::buildBoard() {
     setBoard(i, 1, BP);
     setBoard(i, 6, WP);
   }
-  storeHashedBoard();
 }
 
 int Game::getPositionInfo(int x, int y) const {
@@ -627,6 +620,10 @@ void Game::executeMove(vi3 &move, GameState &gs) {
   for(auto &m: move) {
     int curr_piece = getPositionInfo(m.first.first, m.first.second);
     rollback.push_back({m.first, curr_piece});
+
+    ZOBRIST.togglePiece(gs.zobristHash, curr_piece, m.first.first, m.first.second);
+    ZOBRIST.togglePiece(gs.zobristHash, m.second, m.first.first, m.first.second);
+
     setBoard(m.first.first, m.first.second, m.second);
 
     score -= evaluatePiece(curr_piece);
@@ -653,9 +650,9 @@ void Game::executeMove(vi3 &move, GameState &gs) {
 
 void Game::undoAction() {
   Profiler::getInstance().start("Game::undoAction");
-  gameState.pop_back();
 
-  hashedBoardCounter[getBoardHash()]--;
+  hashedBoardCounter[getState().zobristHash]--;
+  gameState.pop_back();
 
   auto &undo_move = moves.back();
   for(auto &m: undo_move) {
@@ -737,7 +734,6 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
 
   }
   executeMove(current_move, new_gs);
-  new_gs.repetition = storeHashedBoard() == 3;
 
   if(piece == WK) new_gs.touch(0), new_gs.touch(1);
   if(piece == BK) new_gs.touch(2), new_gs.touch(3);
@@ -745,6 +741,20 @@ void Game::doAction(i2 current_pos, i2 new_pos, int choose) {
   if(piece == WR && current_pos.first == 7) new_gs.touch(1);
   if(piece == BR && current_pos.first == 0) new_gs.touch(2);
   if(piece == BR && current_pos.first == 7) new_gs.touch(3);
+
+  // Side-to-move always flips; castling rights and en passant have only
+  // just reached their final value for this move (touch() above can still
+  // change castlingPreserved), so their hash contribution is finished here
+  // instead of incrementally inside executeMove().
+  ZOBRIST.toggleSideToMove(new_gs.zobristHash);
+  ZOBRIST.updateCastling(new_gs.zobristHash, curr_gs.castlingPreserved, new_gs.castlingPreserved);
+  ZOBRIST.updateEnPassant(new_gs.zobristHash, curr_gs.enPassant, new_gs.enPassant);
+
+#ifdef ZOBRIST_VERIFY
+  assert(new_gs.zobristHash == ZOBRIST.compute(board, new_gs.castlingPreserved, new_gs.enPassant, isWhiteTurn()));
+#endif
+
+  new_gs.repetition = storeHashedBoard(new_gs.zobristHash) == 3;
 
   addState(new_gs); // hasAnyMove uses GameState
   new_gs.hasMoves = hasAnyMove();

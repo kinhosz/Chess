@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <Game.hpp>
+#include <Zobrist.hpp>
 
 struct PlacedPiece { int x, y, piece; };
 
@@ -47,6 +48,8 @@ struct TestPositionBuilder {
     g.gameState.clear();
     g.moves.clear();
     g.hashedBoardCounter.clear();
+
+    gs.zobristHash = ZOBRIST.compute(g.board, gs.castlingPreserved, gs.enPassant, whiteToMove);
     g.addState(gs);
 
     // isWhiteTurn() derives from moves.size() parity; a placeholder rollback
