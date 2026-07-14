@@ -958,6 +958,10 @@ Score Game::getScore() const {
   return gs.piecesScoring + gs.scoringHeuristic() + positionalScoring() + hangingPiecesScore();
 }
 
+uint64_t Game::getZobristHash() const {
+  return getState().zobristHash;
+}
+
 Score Game::getCellScore(int x, int y) const {
   int info = getPositionInfo(x, y);
   assert(info != OUT);

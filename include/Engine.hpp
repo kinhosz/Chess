@@ -11,6 +11,7 @@
 #include <Game.hpp>
 #include <Define.hpp>
 #include <Profiler.hpp>
+#include <TranspositionTable.hpp>
 
 // Randomness (move shuffling in createNextLines + tie-break selection in
 // getNextMove) is seeded from CHESS_SEED when set, so a whole game -- shuffle
@@ -26,9 +27,13 @@ inline unsigned long chessRngSeed() {
 
 // Captured once so it can be logged (e.g. MatchPage prints it at game start)
 // -- otherwise there'd be no way to tell, after the fact, which seed a given
-// game's log actually used.
-unsigned long CHESS_RNG_SEED_USED = chessRngSeed();
-std::mt19937 rng(CHESS_RNG_SEED_USED);
+// game's log actually used. `inline` (C++17) so these merge to one shared
+// definition if Engine.hpp is ever included from more than one .cpp in the
+// same binary -- without it, a non-const header global is an ODR violation
+// that only shows up as a link error the day a second translation unit
+// happens to include this header (as adding tests/test_transposition.cpp did).
+inline unsigned long CHESS_RNG_SEED_USED = chessRngSeed();
+inline std::mt19937 rng(CHESS_RNG_SEED_USED);
 
 constexpr Score INF = 1000000000;
 
@@ -36,7 +41,7 @@ constexpr Score INF = 1000000000;
 // floating-point rounding noise to tolerate (that noise is what the old
 // epsilon existed for). No subtraction either, so this stays overflow-safe
 // no matter how large a/b get (e.g. when either is ±INF).
-int cmp(Score a, Score b) {
+inline int cmp(Score a, Score b) {
   if(a < b) return -1;
   if(a > b) return 1;
   return 0;
@@ -44,11 +49,11 @@ int cmp(Score a, Score b) {
 
 // std::sort requires a strict weak ordering; cmp()'s old epsilon tolerance
 // made "equality" non-transitive, so sorting must use plain comparisons here.
-bool max_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
+inline bool max_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
   return a.first > b.first;
 }
 
-bool min_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
+inline bool min_cmp(std::pair<Score, int> a, std::pair<Score, int> b) {
   return a.first < b.first;
 }
 
@@ -146,7 +151,14 @@ public:
   // on the other siblings (see the comment above bestChild below).
   int lastBestChild = -1;
 
-  Score explore(Game& game, int deep, Score alpha, Score beta, int &cnt) {
+  // allowTTCutoff is false only for the root call from getNextMove(): the
+  // table persists for the whole game (see Engine::tt), so the actual
+  // position after a real move is very often already cached -- as an
+  // internal node -- from the previous move's own search. Taking a cutoff
+  // there would leave lastBestChild at -1 with no children explored, and the
+  // root *must* pick a child move. Every recursive call below keeps the
+  // default (true); only the root is special.
+  Score explore(Game& game, int deep, Score alpha, Score beta, int &cnt, TranspositionTable &tt, bool allowTTCutoff = true) {
     Profiler::getInstance().start("EngineNode::explore");
     cnt++;
     score = game.getScore();
@@ -160,9 +172,30 @@ public:
     }
     if(deep <= 0) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
     if(game.isDraw()) { Profiler::getInstance().stop("EngineNode::explore"); return score; }
+
+    // Transposition-table probe: a hash hit searched to at least this depth
+    // lets a whole subtree be skipped -- but only if its bound actually
+    // resolves the current window (see Bound's comment in
+    // TranspositionTable.hpp). lastBestChild is left at -1 on an early
+    // return here; that's safe for non-root nodes, see the comment on
+    // collectPV() below.
+    uint64_t hash = game.getZobristHash();
+    const TTEntry *hit = allowTTCutoff ? tt.probe(hash) : nullptr;
+    if(hit && hit->depth >= deep) {
+      bool usable = hit->bound == Bound::EXACT
+        || (hit->bound == Bound::LOWER && cmp(hit->score, beta) != -1)
+        || (hit->bound == Bound::UPPER && cmp(hit->score, alpha) != 1);
+      if(usable) {
+        score = hit->score;
+        Profiler::getInstance().stop("EngineNode::explore");
+        return score;
+      }
+    }
+
     if(isLinesMissing(game)) createNextLines(game);
 
     bool whiteTurn = game.isWhiteTurn();
+    Score alphaOrig = alpha, betaOrig = beta;
 
     score = (game.isWhiteTurn() ? -INF: INF);
     int break_i = sorted_ptr.size();
@@ -182,7 +215,7 @@ public:
 
       game.doAction(line->move.first.first, line->move.first.second, line->move.second);
 
-      Score sc = line->explore(game, deep-1, alpha, beta, cnt);
+      Score sc = line->explore(game, deep-1, alpha, beta, cnt, tt);
 
 
       sorted_ptr[i].first = sc;
@@ -210,6 +243,18 @@ public:
 
     lastBestChild = bestChild;
 
+    // Bound classification is against the window this call actually started
+    // with (alphaOrig/betaOrig), not the alpha/beta locals mutated by the
+    // loop above -- standard fail-soft semantics, the same for either side
+    // to move: score >= betaOrig means a cutoff happened (LOWER bound, real
+    // value could be higher), score <= alphaOrig means nothing ever beat
+    // alpha (UPPER bound, real value could be lower), otherwise the full
+    // window was searched and score is the exact minimax value.
+    Bound bound = cmp(score, betaOrig) != -1 ? Bound::LOWER
+                : cmp(score, alphaOrig) != 1 ? Bound::UPPER
+                : Bound::EXACT;
+    tt.store(hash, deep, score, bound);
+
     // [0, break_i) were fully evaluated and proven worse than the cutoff line;
     // sort just that slice, then rotate it behind the cutoff line and the
     // untouched (still unexplored) lines, preserving their prior ordering.
@@ -227,6 +272,11 @@ public:
   // lastBestChild rather than re-scanning sorted_ptr for a numeric match,
   // since siblings can hold fail-soft bounds that coincidentally equal the
   // best score without actually being that good.
+  // A node whose score came from a transposition-table hit (see explore())
+  // leaves lastBestChild at -1 since none of its children were actually
+  // explored on that call -- the loop below just stops there, so a cached
+  // node truncates the displayed PV early instead of walking into children
+  // that were never visited.
   void collectPV(std::vector<i5> &pv, int maxLen) const {
     const EngineNode *cur = this;
     for(int step=0; step<maxLen && cur->lastBestChild != -1; step++) {
@@ -236,11 +286,11 @@ public:
     }
   }
 
-  i5 getNextMove(Game &game, int deep, int &cnt, MoveExplanation *explain_out = nullptr) {
+  i5 getNextMove(Game &game, int deep, int &cnt, TranspositionTable &tt, MoveExplanation *explain_out = nullptr) {
     if(next_line != -1){
       i5 m = lines[next_line]->move;
       game.doAction(m.first.first, m.first.second, m.second);
-      i5 ret = lines[next_line]->getNextMove(game, deep, cnt, explain_out);
+      i5 ret = lines[next_line]->getNextMove(game, deep, cnt, tt, explain_out);
       game.undoAction();
 
       return ret;
@@ -248,7 +298,11 @@ public:
 
     Score alpha = -INF;
     Score beta = INF;
-    score = explore(game, deep, alpha, beta, cnt);
+    // allowTTCutoff=false: this is the root of the search (see explore()'s
+    // comment) -- it must always explore its children to pick a move, even
+    // if this exact position is already cached from a previous move's
+    // search.
+    score = explore(game, deep, alpha, beta, cnt, tt, /*allowTTCutoff=*/false);
 
     // lastBestChild (set by explore() above) is the one child proven to
     // exactly achieve `score` -- unlike its siblings, which may only hold
@@ -314,6 +368,10 @@ class Engine {
 private:
   std::unique_ptr<EngineNode> root;
   Game game;
+  // Lives for the whole game, not reset per move or per iterative-deepening
+  // iteration -- a (hash, depth) entry is a fact about the position alone,
+  // valid regardless of which real move or search pass discovered it.
+  TranspositionTable tt;
 
 public:
 
@@ -328,7 +386,7 @@ public:
 
     // Iterative deepening
     for(int d=1;d<=deep_size;d++) {
-      ret = root->getNextMove(game, d, cnt, explain_out);
+      ret = root->getNextMove(game, d, cnt, tt, explain_out);
     }
     if(nodes_out) *nodes_out = cnt;
     return ret;

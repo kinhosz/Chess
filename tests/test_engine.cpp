@@ -101,7 +101,8 @@ TEST(engine_saves_a_hanging_queen_instead_of_tying_with_losing_it) {
   i5 rootMove = {{{-1,-1},{-1,-1}}, -1};
   EngineNode node(rootMove);
   int cnt = 0;
-  i5 chosen = node.getNextMove(g, 5, cnt);
+  TranspositionTable tt;
+  i5 chosen = node.getNextMove(g, 5, cnt, tt);
 
   CHECK(chosen.first.first == i2(7,3));  // from h5
   CHECK(chosen.first.second == i2(7,4)); // to h4

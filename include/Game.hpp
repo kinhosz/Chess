@@ -151,6 +151,7 @@ public:
   vi4 genNextMoves();
   Score getScore() const;
   Score getCellScore(int x, int y) const;
+  uint64_t getZobristHash() const;
 
   // Debugger;
   void debugger();
